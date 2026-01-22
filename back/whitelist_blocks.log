@@ -1,0 +1,235 @@
+2026-01-05 19:41:33,973 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /hosts | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:41:33,978 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /statistics | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:42:47,261 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /hosts | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:42:47,261 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /statistics | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:42:59,594 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /hosts | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:42:59,599 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /statistics | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:46:26,147 - INFO - ============================================================
+2026-01-05 19:46:26,147 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 19:46:26,147 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 19:46:26,148 - INFO - ============================================================
+2026-01-05 19:47:13,281 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /hosts | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:47:13,282 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /statistics | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:48:01,986 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /hosts | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:48:01,991 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /statistics | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:48:03,670 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /hosts | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:48:03,671 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /statistics | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:51:37,886 - INFO - ============================================================
+2026-01-05 19:51:37,886 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 19:51:37,886 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 19:51:37,886 - INFO - ============================================================
+2026-01-05 19:55:40,959 - INFO - ============================================================
+2026-01-05 19:55:40,959 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 19:55:40,959 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 19:55:40,959 - INFO - ============================================================
+2026-01-05 19:55:55,524 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /hosts | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:55:55,526 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /statistics | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:55:57,019 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /hosts | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:55:57,020 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /statistics | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 19:57:18,992 - INFO - ============================================================
+2026-01-05 19:57:18,992 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 19:57:18,992 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 19:57:18,992 - INFO - ============================================================
+2026-01-05 19:58:40,840 - INFO - ============================================================
+2026-01-05 19:58:40,841 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 19:58:40,841 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 19:58:40,841 - INFO - ============================================================
+2026-01-05 20:03:20,353 - INFO - ============================================================
+2026-01-05 20:03:20,353 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:03:20,353 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:03:20,353 - INFO - ============================================================
+2026-01-05 20:05:50,564 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /hosts | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 20:05:50,566 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /statistics | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 20:05:51,544 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /hosts | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 20:05:51,545 - WARNING - 🚫 ACCESO BLOQUEADO - IP: 192.168.0.2 | Path: /statistics | Method: GET | User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1
+2026-01-05 20:07:03,772 - INFO - ============================================================
+2026-01-05 20:07:03,772 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:07:03,772 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:07:03,772 - INFO - ============================================================
+2026-01-05 20:07:09,894 - INFO - ============================================================
+2026-01-05 20:07:09,894 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:07:09,894 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:07:09,894 - INFO - ============================================================
+2026-01-05 20:09:00,797 - INFO - ============================================================
+2026-01-05 20:09:00,797 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:09:00,798 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:09:00,798 - INFO - ============================================================
+2026-01-05 20:09:10,524 - INFO - ============================================================
+2026-01-05 20:09:10,524 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:09:10,524 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:09:10,524 - INFO - ============================================================
+2026-01-05 20:09:21,544 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:09:21.544299", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:09:21,545 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:09:21.545043", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:09:22,662 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:09:22.662727", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:09:22,667 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:09:22.667353", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:10:05,630 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:10:05.630146", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:10:05,637 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:10:05.637378", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:12:15,157 - INFO - ============================================================
+2026-01-05 20:12:15,157 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:12:15,157 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:12:15,157 - INFO - ============================================================
+2026-01-05 20:12:17,754 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:12:17.754183", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:12:17,754 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:12:17.754892", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:13:47,639 - INFO - ============================================================
+2026-01-05 20:13:47,639 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:13:47,639 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:13:47,639 - INFO - ============================================================
+2026-01-05 20:13:52,776 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:13:52.776865", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:13:52,778 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:13:52.778899", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:14:05,525 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:14:05.525490", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:14:05,526 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:14:05.526577", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:14:59,786 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:14:59.786465", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:14:59,788 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:14:59.788406", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:17:29,256 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:17:29.256320", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:17:29,263 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:17:29.263925", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:17:36,954 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:17:36.954740", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/ping", "method": "POST", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:17:50,338 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:17:50.338537", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/scan/os/segment", "method": "POST", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:18:07,865 - INFO - ============================================================
+2026-01-05 20:18:07,866 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:18:07,866 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:18:07,866 - INFO - ============================================================
+2026-01-05 20:18:46,094 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:18:46.094193", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:18:53,844 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:18:53.844518", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:19:56,094 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:19:56.094797", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:20:03,844 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:20:03.844130", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:21:18,223 - INFO - ============================================================
+2026-01-05 20:21:18,223 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:21:18,223 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:21:18,223 - INFO - ============================================================
+2026-01-05 20:21:26,019 - INFO - ============================================================
+2026-01-05 20:21:26,019 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:21:26,019 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:21:26,019 - INFO - ============================================================
+2026-01-05 20:21:52,594 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:21:52.594460", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:22:00,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:22:00.345176", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:24:03,594 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:24:03.594493", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:24:11,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:24:11.345629", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:24:41,594 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:24:41.594498", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:24:49,344 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:24:49.344762", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:26:58,344 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:26:58.344535", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:27:06,094 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:27:06.094400", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:28:13,331 - INFO - ============================================================
+2026-01-05 20:28:13,331 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:28:13,331 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:28:13,331 - INFO - ============================================================
+2026-01-05 20:28:21,845 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:28:21.845429", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:29:53,810 - INFO - ============================================================
+2026-01-05 20:29:53,811 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:29:53,811 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:29:53,811 - INFO - ============================================================
+2026-01-05 20:30:12,095 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:30:12.095028", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:30:19,845 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:30:19.845685", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:30:27,595 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:30:27.595691", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:30:35,344 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:30:35.344773", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:30:43,095 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:30:43.094975", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:30:50,845 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:30:50.845398", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:30:58,594 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:30:58.594759", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:31:06,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:31:06.345019", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:31:14,095 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:31:14.095643", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:31:24,344 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:31:24.344814", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:31:34,344 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:31:34.344859", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:31:44,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:31:44.345009", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:31:54,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:31:54.344947", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:32:04,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:32:04.344998", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:32:14,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:32:14.344999", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:32:24,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:32:24.345659", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:32:34,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:32:34.345385", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:32:44,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:32:44.345443", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:32:54,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:32:54.344963", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:33:04,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:33:04.345505", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:33:14,258 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:33:14.258521", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:33:24,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:33:24.345457", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:33:34,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:33:34.345761", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:33:36,126 - INFO - ============================================================
+2026-01-05 20:33:36,126 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:33:36,126 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:33:36,126 - INFO - ============================================================
+2026-01-05 20:33:40,202 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:33:40.202190", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:34:27,961 - INFO - ============================================================
+2026-01-05 20:34:27,961 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:34:27,961 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:34:27,961 - INFO - ============================================================
+2026-01-05 20:34:44,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:34:44.345159", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:34:53,344 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:34:53.344802", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:35:01,095 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:35:01.094951", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/hosts", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:35:08,845 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:35:08.845425", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/statistics", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:35:16,594 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:35:16.594736", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:35:24,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:35:24.345079", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:35:32,095 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:35:32.095528", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:35:39,845 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:35:39.845469", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:36:23,909 - INFO - ============================================================
+2026-01-05 20:36:23,909 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:36:23,909 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:36:23,909 - INFO - ============================================================
+2026-01-05 20:41:24,677 - INFO - ============================================================
+2026-01-05 20:41:24,677 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:41:24,677 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:41:24,677 - INFO - ============================================================
+2026-01-05 20:41:43,096 - INFO - ============================================================
+2026-01-05 20:41:43,096 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:41:43,096 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:41:43,097 - INFO - ============================================================
+2026-01-05 20:42:59,768 - INFO - ============================================================
+2026-01-05 20:42:59,768 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:42:59,768 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:42:59,768 - INFO - ============================================================
+2026-01-05 20:43:33,721 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:43:33.721469", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:48:39,596 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:48:39.595825", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:48:46,162 - INFO - ============================================================
+2026-01-05 20:48:46,162 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:48:46,162 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:48:46,162 - INFO - ============================================================
+2026-01-05 20:48:53,297 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:48:53.297191", "ip": "192.168.0.2", "mac": "No disponible", "vendor": "Desconocido", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:48:58,170 - INFO - ============================================================
+2026-01-05 20:48:58,170 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:48:58,171 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:48:58,171 - INFO - ============================================================
+2026-01-05 20:49:09,844 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:49:09.844779", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:51:56,388 - INFO - ============================================================
+2026-01-05 20:51:56,388 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:51:56,389 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:51:56,389 - INFO - ============================================================
+2026-01-05 20:52:08,595 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:52:08.595747", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:52:14,957 - INFO - ============================================================
+2026-01-05 20:52:14,958 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 20:52:14,958 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 20:52:14,958 - INFO - ============================================================
+2026-01-05 20:52:25,095 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:52:25.095216", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:57:32,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:57:32.345536", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 20:59:09,546 - INFO - 🗑️ IP eliminada de whitelist: 192.168.0.5 por 192.168.0.5
+2026-01-05 20:59:09,615 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T20:59:09.615824", "ip": "192.168.0.5", "mac": "10:FF:E0:A9:82:A3", "vendor": "Giga-byte Technology", "path": "/api/whitelist", "method": "GET", "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"}
+2026-01-05 21:00:50,427 - INFO - ============================================================
+2026-01-05 21:00:50,427 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 21:00:50,427 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 21:00:50,427 - INFO - ============================================================
+2026-01-05 21:01:01,095 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T21:01:01.094891", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 21:01:14,691 - INFO - ✅ IP agregada a whitelist: 192.168.0.2 por 192.168.0.5
+2026-01-05 21:03:59,942 - INFO - ============================================================
+2026-01-05 21:03:59,942 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 21:03:59,942 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 21:03:59,942 - INFO - ============================================================
+2026-01-05 21:04:10,304 - INFO - ============================================================
+2026-01-05 21:04:10,304 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 21:04:10,310 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 21:04:10,310 - INFO - ============================================================
+2026-01-05 21:04:17,574 - INFO - ✅ IP agregada a whitelist: 192.168.0.2 por 192.168.0.5
+2026-01-05 21:04:17,574 - INFO - ✅ Archivo .env actualizado: IP_WHITELIST=192.168.0.5,192.168.0.6,192.168.0.2
+2026-01-05 21:04:33,244 - INFO - 🗑️ IP eliminada de whitelist: 192.168.0.2 por 192.168.0.5
+2026-01-05 21:04:33,246 - INFO - ✅ Archivo .env actualizado: IP_WHITELIST=192.168.0.5,192.168.0.6
+2026-01-05 21:04:47,782 - INFO - ✅ IP agregada a whitelist: 192.168.0.2 por 192.168.0.5
+2026-01-05 21:04:47,783 - INFO - ✅ Archivo .env actualizado: IP_WHITELIST=192.168.0.5,192.168.0.6,192.168.0.2
+2026-01-05 21:05:59,357 - INFO - 🗑️ IP eliminada de whitelist: 192.168.0.5 por 192.168.0.5
+2026-01-05 21:05:59,358 - INFO - ✅ Archivo .env actualizado: IP_WHITELIST=192.168.0.6,192.168.0.2
+2026-01-05 21:05:59,418 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T21:05:59.418143", "ip": "192.168.0.5", "mac": "10:FF:E0:A9:82:A3", "vendor": "Giga-byte Technology", "path": "/api/whitelist", "method": "GET", "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"}
+2026-01-05 21:07:04,597 - INFO - ============================================================
+2026-01-05 21:07:04,597 - INFO - Sistema de logging de whitelist iniciado
+2026-01-05 21:07:04,597 - INFO - Archivo de log: /home/josegarciaxd/residencias/back_vue/app/../whitelist_blocks.log
+2026-01-05 21:07:04,597 - INFO - ============================================================
+2026-01-05 21:07:13,595 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T21:07:13.595764", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 21:08:34,493 - INFO - ✅ IP agregada a whitelist: 192.168.0.2 por 192.168.0.5
+2026-01-05 21:08:34,494 - INFO - ✅ Archivo .env actualizado: IP_WHITELIST=192.168.0.5,192.168.0.6,192.168.0.2
+2026-01-05 21:35:38,689 - INFO - 🗑️ IP eliminada de whitelist: 192.168.0.2 por 192.168.0.5
+2026-01-05 21:35:38,689 - INFO - ✅ Archivo .env actualizado: IP_WHITELIST=192.168.0.5,192.168.0.6
+2026-01-05 21:35:52,345 - WARNING - BLOCKED_ACCESS {"timestamp": "2026-01-05T21:35:52.345299", "ip": "192.168.0.2", "mac": "10:A2:D3:0E:0F:37", "vendor": "Apple", "path": "/health", "method": "GET", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"}
+2026-01-05 21:39:50,994 - INFO - ✅ IP agregada a whitelist: 192.168.0.2 por 192.168.0.5
+2026-01-05 21:39:50,995 - INFO - ✅ Archivo .env actualizado: IP_WHITELIST=192.168.0.5,192.168.0.6,192.168.0.2

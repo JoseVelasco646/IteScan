@@ -1,0 +1,65 @@
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: network_scanner_db
+    environment:
+      POSTGRES_USER: scanner
+      POSTGRES_PASSWORD: scanner123
+      POSTGRES_DB: network_scanner
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./back/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scanner -d network_scanner"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  # Backend API
+  backend:
+    build: ./back
+    container_name: network_scanner_api
+    network_mode: host
+    env_file:
+      - ./back/.env
+    environment:
+      - DATABASE_URL=postgresql://scanner:scanner123@localhost:5432/network_scanner
+    volumes:
+      - ./back/app:/app/app
+      - ./back/.env:/app/.env:ro
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+
+  # Nginx proxy para backend
+  nginx-backend:
+    image: nginx:alpine
+    container_name: network_scanner_nginx_backend
+    network_mode: host
+    volumes:
+      - ./back/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
+  # Frontend Vue
+  frontend:
+    build: ./front
+    container_name: network_scanner_frontend
+    ports:
+      - "0.0.0.0:3000:80"  
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
