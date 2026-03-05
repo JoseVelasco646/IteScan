@@ -1,6 +1,6 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { FishingHook, Wifi, EthernetPort, Monitor, Search, Database, Calendar, Radar, Terminal } from 'lucide-vue-next'
+import { ref, onMounted, computed, watch } from 'vue'
+import { FishingHook, Wifi, EthernetPort, Monitor, Search, Database, Calendar, Radar, Terminal, ScrollText, LayoutDashboard, Bug, Network } from 'lucide-vue-next'
 import PingScanner from '../components/PingScanner.vue'
 import PortScanner from '../components/PortScanner.vue'
 import ServiceScanner from '../components/ServiceScanner.vue'
@@ -12,29 +12,58 @@ import ScanProgress from '../components/ScanProgress.vue'
 import { useScanState } from '../composables/useScanState'
 import { useScanProgress } from '../composables/useScanProgress'
 import ScanScheduler from '../components/ScanScheduler.vue'
-import SSHTerminal from '../components/SSHTerminal.vue'
+import SSHTerminalInteractive from '../components/SSHTerminalInteractive.vue'
+import AuditLog from '../components/AuditLog.vue'
+import VulnerabilityScanner from '../components/VulnerabilityScanner.vue'
+import DashboardSummary from '../components/DashboardSummary.vue'
+import SubnetManager from '../components/SubnetManager.vue'
 import { useTheme } from '../composables/useTheme'
+import { usePermissions } from '../composables/usePermissions'
 
-const activeTab = ref('database')
+// Persistir tab activo en localStorage
+const savedTab = localStorage.getItem('ite_active_tab') || 'summary'
+const activeTab = ref(savedTab)
+
+watch(activeTab, (val) => {
+  localStorage.setItem('ite_active_tab', val)
+})
+
 const { isScanning, currentScanType } = useScanState()
 const { scanProgress, setupProgressListener } = useScanProgress()
 const { isDark } = useTheme()
+const { canExecuteScans, canManageSchedulers, canUseSSH, canViewAudit } = usePermissions()
 
 onMounted(() => {
   setupProgressListener()
 })
 
-const tabs = [
-  { id: 'database', name: 'Database', icon: Database },
-  { id: 'fullscan', name: 'Full Scan', icon: Radar },
-  { id: 'ping', name: 'Ping', icon: Wifi },
-  { id: 'ports', name: 'Ports', icon: FishingHook },
-  { id: 'services', name: 'Services', icon: EthernetPort },
-  { id: 'os', name: 'OS Detection', icon: Monitor },
-  { id: 'mac', name: 'MAC Scan', icon: Search },
-  { id: 'scheduler', name: 'Scheduler', icon: Calendar },
-  { id: 'terminal', name: 'Terminal', icon: Terminal }
+const allTabs = [
+  { id: 'summary', name: 'Resumen', icon: LayoutDashboard, minRole: 'viewer' },
+  { id: 'database', name: 'Base de Datos', icon: Database, minRole: 'viewer' },
+  { id: 'fullscan', name: 'Escaneo Completo', icon: Radar, minRole: 'op' },
+  { id: 'ping', name: 'Ping', icon: Wifi, minRole: 'op' },
+  { id: 'ports', name: 'Puertos', icon: FishingHook, minRole: 'op' },
+  { id: 'services', name: 'Servicios', icon: EthernetPort, minRole: 'op' },
+  { id: 'os', name: 'Detección OS', icon: Monitor, minRole: 'op' },
+  { id: 'mac', name: 'Escaneo MAC', icon: Search, minRole: 'op' },
+  { id: 'vulns', name: 'Vulnerabilidades', icon: Bug, minRole: 'op' },
+  { id: 'subnets', name: 'Labs de Subred', icon: Network, minRole: 'op' },
+  { id: 'scheduler', name: 'Schedule', icon: Calendar, minRole: 'op' },
+  { id: 'terminal', name: 'Terminal', icon: Terminal, minRole: 'op' },
+  { id: 'audit', name: 'Auditoría', icon: ScrollText, minRole: 'admin' }
 ]
+
+const ROLE_LEVELS = { admin: 4, mod: 3, op: 2, viewer: 1 }
+
+const tabs = computed(() => {
+  const userRole = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('admin_user') || '{}').role || 'viewer'
+    } catch { return 'viewer' }
+  })()
+  const userLevel = ROLE_LEVELS[userRole] || 1
+  return allTabs.filter(tab => userLevel >= (ROLE_LEVELS[tab.minRole] || 1))
+})
 
 const containerClasses = computed(() => {
   return isDark()
@@ -228,17 +257,21 @@ const getTextClasses = (tabId) => {
       class="rounded-3xl shadow-2xl p-8 border min-h-[420px] transition-all duration-300"
       :class="containerClasses"
     >
-      <ScanProgress v-if="activeTab !== 'database' && activeTab !== 'scheduler' && activeTab !== 'fullscan' && activeTab !== 'terminal'" :progress="scanProgress" />
+      <ScanProgress v-if="activeTab !== 'database' && activeTab !== 'scheduler' && activeTab !== 'fullscan' && activeTab !== 'terminal' && activeTab !== 'audit' && activeTab !== 'summary' && activeTab !== 'subnets'" :progress="scanProgress" />
       
+      <DashboardSummary v-if="activeTab === 'summary'" />
       <HostsTable v-if="activeTab === 'database'" />
-      <FullScan v-else-if="activeTab === 'fullscan'" />
-      <PingScanner v-else-if="activeTab === 'ping'" />
-      <PortScanner v-else-if="activeTab === 'ports'" />
-      <ServiceScanner v-else-if="activeTab === 'services'" />
-      <OSDetection v-else-if="activeTab === 'os'" />
-      <MacScanner v-else-if="activeTab === 'mac'" />
-      <ScanScheduler v-else-if="activeTab === 'scheduler'" />
-      <SSHTerminal v-else-if="activeTab === 'terminal'" />
+      <FullScan v-if="activeTab === 'fullscan'" />
+      <PingScanner v-if="activeTab === 'ping'" />
+      <PortScanner v-if="activeTab === 'ports'" />
+      <ServiceScanner v-if="activeTab === 'services'" />
+      <OSDetection v-if="activeTab === 'os'" />
+      <MacScanner v-if="activeTab === 'mac'" />
+      <VulnerabilityScanner v-if="activeTab === 'vulns'" />
+      <SubnetManager v-if="activeTab === 'subnets'" />
+      <ScanScheduler v-if="activeTab === 'scheduler'" />
+      <SSHTerminalInteractive v-if="activeTab === 'terminal'" />
+      <AuditLog v-if="activeTab === 'audit'" />
     </div>
   </div>
 </template>

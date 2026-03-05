@@ -78,6 +78,8 @@ class ScanSchedulePublic(BaseModel):
     last_run: Optional[datetime]
     created_at: datetime
     updated_at: datetime
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
     
     class Config:
         from_attributes = True

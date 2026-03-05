@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { scannerAPI } from '../api/scanner'
 import { useToast } from '../composables/useToast'
 import { useGlobalWebSocket } from '../composables/useWebSocket'
@@ -33,13 +33,18 @@ import {
   ArrowUp,
   ArrowDown,
   ChevronsUpDown,
+  Pencil,
+  Check,
 } from 'lucide-vue-next'
 import SkeletonLoader from './SkeletonLoader.vue'
+import OSIcon from './OSIcon.vue'
 import { useTheme } from '../composables/useTheme'
+import { usePermissions } from '../composables/usePermissions'
 
 const toast = useToast()
 const ws = useGlobalWebSocket()
 const { isDark } = useTheme()
+const { canEditResources, canDeleteResources, canUseSSH } = usePermissions()
 
 const hosts = ref([])
 const loading = ref(false)
@@ -68,6 +73,15 @@ const sshOSType = ref('linux')
 const showDetailModal = ref(false)
 const selectedHost = ref(null)
 
+const editingNickname = ref(null)
+const nicknameInput = ref('')
+const savingNickname = ref(false)
+
+// Paginación
+const currentPage = ref(1)
+const pageSize = ref(50)
+const pageSizeOptions = [25, 50, 100, 200]
+
 const showConfirmModal = ref(false)
 const confirmModalData = ref({
   title: '',
@@ -86,13 +100,14 @@ const resultModalData = ref({
 })
 
 const tableRef = ref(null)
+const wsCleanup = []
 
 onMounted(() => {
   loadHosts()
   loadStatistics()
   
   
-  ws.on('host_update', (data) => {
+  const removeHostUpdate = ws.on('host_update', (data) => {
     if (data.action === 'created') {
       const exists = hosts.value.some(h => h.ip === data.host.ip)
       if (!exists) {
@@ -107,7 +122,7 @@ onMounted(() => {
     loadStatistics()
   })
   
-  ws.on('scan_progress', (data) => {
+  const removeScanProgress = ws.on('scan_progress', (data) => {
     if (data.scan_type !== 'full') return
     
     if (data.result && data.result.status === 'up') {
@@ -138,15 +153,23 @@ onMounted(() => {
       }, 1000)
     }
   })
+
+  // Store removers for cleanup
+  wsCleanup.push(removeHostUpdate, removeScanProgress)
+})
+
+onUnmounted(() => {
+  wsCleanup.forEach(fn => fn && fn())
 })
 
 const loadHosts = async () => {
   loading.value = true
   error.value = ''
   try {
-    const data = await scannerAPI.getAllHosts()
-    hosts.value = Array.isArray(data) ? data : []
-    toast.success(`${hosts.value.length} hosts cargados exitosamente`)
+    const data = await scannerAPI.getAllHosts(0, 5000)
+    hosts.value = Array.isArray(data) ? data : (data.items || [])
+    const total = data.total || hosts.value.length
+    toast.success(`${total} hosts cargados exitosamente`)
   } catch (err) {
     error.value = err.response?.data?.detail || 'Error Cargando Host de la base de datos'
     hosts.value = []
@@ -211,40 +234,71 @@ const filteredHosts = computed(() => {
   return result
 })
 
+const totalFiltered = computed(() => filteredHosts.value.length)
+const totalPages = computed(() => Math.max(1, Math.ceil(totalFiltered.value / pageSize.value)))
+
+const paginatedHosts = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredHosts.value.slice(start, start + pageSize.value)
+})
+
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+  }
+}
+
+const changePageSize = (size) => {
+  pageSize.value = size
+  currentPage.value = 1
+}
+
+const visiblePages = computed(() => {
+  const total = totalPages.value
+  const current = currentPage.value
+  const pages = []
+  const start = Math.max(1, current - 2)
+  const end = Math.min(total, current + 2)
+  for (let i = start; i <= end; i++) pages.push(i)
+  return pages
+})
+
 const applyDateFilter = () => {
   filterType.value = 'date'
+  currentPage.value = 1
 }
 
 const clearDateFilter = () => {
   filterStartDate.value = ''
   filterEndDate.value = ''
   filterType.value = 'all'
+  currentPage.value = 1
 }
 
 const toggleSort = (field) => {
-  console.log('toggleSort llamado con campo:', field)
   if (sortField.value === field) {
     sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
   } else {
     sortField.value = field
     sortDirection.value = 'asc'
   }
-  console.log('Nuevo sortField:', sortField.value, 'sortDirection:', sortDirection.value)
 }
 
 const applyFilter = async () => {
   loading.value = true
   error.value = ''
+  currentPage.value = 1
   try {
     if (filterType.value === 'range') {
       hosts.value = await scannerAPI.filterByRange(filterStartIp.value, filterEndIp.value)
     } else if (filterType.value === 'subnet') {
       hosts.value = await scannerAPI.filterSubnet(filterSubnet.value)
     } else {
-      hosts.value = await scannerAPI.getAllHosts()
+      const data = await scannerAPI.getAllHosts(0, 5000)
+      hosts.value = Array.isArray(data) ? data : (data.items || [])
     }
   } catch (err) {
-    error.value = 'Error applying filter'
+    error.value = 'Error aplicando filtro'
   } finally {
     loading.value = false
   }
@@ -256,10 +310,11 @@ const searchHosts = async () => {
     return
   }
   loading.value = true
+  currentPage.value = 1
   try {
     hosts.value = await scannerAPI.searchHosts(searchQuery.value)
   } catch (err) {
-    error.value = 'Error searching hosts'
+    error.value = 'Error buscando hosts'
   } finally {
     loading.value = false
   }
@@ -286,6 +341,34 @@ const isSelected = (host) => {
   return selectedHosts.value.some((h) => h.ip === host.ip)
 }
 
+const startEditNickname = (host) => {
+  editingNickname.value = host.ip
+  nicknameInput.value = host.nickname || ''
+}
+
+const cancelEditNickname = () => {
+  editingNickname.value = null
+  nicknameInput.value = ''
+}
+
+const saveNickname = async (host) => {
+  savingNickname.value = true
+  try {
+    const result = await scannerAPI.updateHostNickname(host.ip, nicknameInput.value.trim())
+    const idx = hosts.value.findIndex(h => h.ip === host.ip)
+    if (idx !== -1) {
+      hosts.value[idx].nickname = nicknameInput.value.trim() || null
+    }
+    editingNickname.value = null
+    nicknameInput.value = ''
+    toast.success('Apodo actualizado')
+  } catch (err) {
+    toast.error('Error al actualizar apodo')
+  } finally {
+    savingNickname.value = false
+  }
+}
+
 
 const exportToCSV = async () => {
   try {
@@ -300,7 +383,7 @@ const exportToCSV = async () => {
     document.body.removeChild(a)
     toast.success('Exportado a CSV exitosamente')
   } catch (err) {
-    error.value = 'Error exporting to CSV'
+    error.value = 'Error exportando a CSV'
     toast.error('Error exportando a CSV')
   }
 }
@@ -309,25 +392,27 @@ const exportToExcel = async () => {
   const hostsToExport = selectedHosts.value.length > 0 ? selectedHosts.value : filteredHosts.value
   
   const workbook = new ExcelJS.Workbook()
-  const worksheet = workbook.addWorksheet('Network Scan')
+  const worksheet = workbook.addWorksheet('Escaneo de Red')
 
   worksheet.columns = [
     { header: 'IP', key: 'ip', width: 15 },
-    { header: 'Hostname', key: 'hostname', width: 20 },
+    { header: 'Nombre de host', key: 'hostname', width: 20 },
+    { header: 'Apodo', key: 'nickname', width: 20 },
     { header: 'MAC', key: 'mac', width: 18 },
-    { header: 'Vendor', key: 'vendor', width: 20 },
-    { header: 'OS', key: 'os', width: 15 },
-    { header: 'Status', key: 'status', width: 10 },
-    { header: 'Latency (ms)', key: 'latency', width: 12 },
-    { header: 'Last Seen', key: 'lastSeen', width: 20 },
-    { header: 'Ports', key: 'ports', width: 30 },
-    { header: 'Services', key: 'services', width: 30 },
+    { header: 'Fabricante', key: 'vendor', width: 20 },
+    { header: 'SO', key: 'os', width: 15 },
+    { header: 'Estado', key: 'status', width: 10 },
+    { header: 'Latencia (ms)', key: 'latency', width: 12 },
+    { header: 'Última vez visto', key: 'lastSeen', width: 20 },
+    { header: 'Puertos', key: 'ports', width: 30 },
+    { header: 'Servicios', key: 'services', width: 30 },
   ]
 
   hostsToExport.forEach((host) => {
     worksheet.addRow({
       ip: host.ip,
       hostname: host.hostname || 'N/A',
+      nickname: host.nickname || '',
       mac: host.mac || 'N/A',
       vendor: host.vendor || 'N/A',
       os: host.os_name || 'N/A',
@@ -369,7 +454,7 @@ const exportToPDF = async () => {
   pdf.setFontSize(20)
   pdf.setTextColor(34, 211, 238) 
   pdf.setFont(undefined, 'bold')
-  pdf.text('Network Scan Report', 14, 15)
+  pdf.text('Reporte de Escaneo de Red', 14, 15)
   
   pdf.setDrawColor(34, 211, 238)
   pdf.setLineWidth(0.5)
@@ -386,6 +471,7 @@ const exportToPDF = async () => {
   const tableData = hostsToExport.map(host => [
     host.ip,
     host.hostname || 'N/A',
+    host.nickname || '',
     host.mac || 'N/A',
     host.vendor || 'N/A',
     host.os_name || 'N/A',
@@ -396,7 +482,7 @@ const exportToPDF = async () => {
   
   autoTable(pdf, {
     startY: 38,
-    head: [['IP Address', 'Hostname', 'MAC Address', 'Vendor', 'OS', 'Status', 'Ports', 'Last Seen']],
+    head: [['Dirección IP', 'Nombre de host', 'Apodo', 'Dirección MAC', 'Fabricante', 'SO', 'Estado', 'Puertos', 'Última vez visto']],
     body: tableData,
     theme: 'striped',
     headStyles: {
@@ -416,21 +502,22 @@ const exportToPDF = async () => {
       fillColor: [245, 250, 252]
     },
     columnStyles: {
-      0: { cellWidth: 30, fontStyle: 'bold', textColor: [34, 211, 238] }, // IP
-      1: { cellWidth: 35 }, 
-      2: { cellWidth: 35, font: 'courier' }, 
-      3: { cellWidth: 35 }, 
-      4: { cellWidth: 30 }, 
-      5: { 
-        cellWidth: 20,
+      0: { cellWidth: 28, fontStyle: 'bold', textColor: [34, 211, 238] }, // IP
+      1: { cellWidth: 30 }, // Hostname
+      2: { cellWidth: 28 }, // Apodo
+      3: { cellWidth: 30, font: 'courier' }, // MAC
+      4: { cellWidth: 30 }, // Vendor
+      5: { cellWidth: 25 }, // OS
+      6: { 
+        cellWidth: 18,
         halign: 'center',
         fontStyle: 'bold'
-      },
-      6: { cellWidth: 18, halign: 'center' }, 
-      7: { cellWidth: 28 } 
+      }, // Status
+      7: { cellWidth: 16, halign: 'center' }, // Ports
+      8: { cellWidth: 25 } // Last Seen
     },
     didParseCell: function(data) {
-      if (data.column.index === 5 && data.section === 'body') {
+      if (data.column.index === 6 && data.section === 'body') {
         if (data.cell.raw === 'UP') {
           data.cell.styles.textColor = [34, 197, 94] 
           data.cell.styles.fillColor = [220, 252, 231]
@@ -456,7 +543,7 @@ const exportToPDF = async () => {
       )
       
       pdf.text(
-        `Generado con Network Scanner`,
+        `Generado con Escáner de Red`,
         14,
         pageHeight - 10
       )
@@ -497,6 +584,7 @@ const exportToPNG = async () => {
     <tr style="background: #1e293b;">
       <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">IP Address</th>
       <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">Hostname</th>
+      <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">Apodo</th>
       <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">MAC</th>
       <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">Vendor</th>
       <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">OS</th>
@@ -518,6 +606,7 @@ const exportToPNG = async () => {
     row.innerHTML = `
       <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${host.ip}</td>
       <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${host.hostname || 'N/A'}</td>
+      <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${host.nickname || ''}</td>
       <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${host.mac || 'N/A'}</td>
       <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${host.vendor || 'N/A'}</td>
       <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${host.os_name || 'N/A'}</td>
@@ -574,7 +663,7 @@ const openSSHModal = (target) => {
 
 const testSSHConnection = async () => {
   if (!sshUsername.value || !sshPassword.value) {
-    error.value = 'Please provide SSH credentials'
+    error.value = 'Por favor proporciona credenciales SSH'
     return
   }
 
@@ -590,7 +679,7 @@ const testSSHConnection = async () => {
     }
 
     if (!testHost) {
-      sshTestResult.value = { success: false, message: 'No host to test' }
+      sshTestResult.value = { success: false, message: 'No hay host para probar' }
       return
     }
 
@@ -608,7 +697,7 @@ const testSSHConnection = async () => {
 
 const shutdownHosts = async () => {
   if (!sshUsername.value || !sshPassword.value) {
-    error.value = 'Please provide SSH credentials'
+    error.value = 'Por favor proporciona credenciales SSH'
     return
   }
 
@@ -664,7 +753,7 @@ const shutdownHosts = async () => {
     await loadStatistics()
     selectedHosts.value = []
   } catch (err) {
-    error.value = err.response?.data?.detail || 'Error sending shutdown commands'
+    error.value = err.response?.data?.detail || 'Error enviando comandos de apagado'
   } finally {
     loading.value = false
   }
@@ -722,34 +811,25 @@ const deleteSelectedHosts = async () => {
       error.value = ''
       
       try {
-        let successful = 0
-        let failed = 0
-        
-        for (const host of selectedHosts.value) {
-          try {
-            await scannerAPI.deleteHost(host.ip)
-            successful++
-          } catch (err) {
-            failed++
-          }
-        }
+        const ips = selectedHosts.value.map(h => h.ip)
+        const result = await scannerAPI.deleteHostsBatch(ips)
         
         selectedHosts.value = []
         await loadHosts()
         await loadStatistics()
         
-        if (failed === 0) {
+        if (result.failed === 0) {
           showResultModal.value = true
           resultModalData.value = {
             title: 'Eliminación Exitosa',
-            message: `Se eliminaron exitosamente ${successful} host(s).`,
+            message: `Se eliminaron exitosamente ${result.deleted} host(s).`,
             type: 'success'
           }
         } else {
           showResultModal.value = true
           resultModalData.value = {
             title: 'Eliminación Completada',
-            message: `Eliminados: ${successful}\nFallidos: ${failed}\n\nAlgunos hosts no pudieron ser eliminados.`,
+            message: `Eliminados: ${result.deleted}\nFallidos: ${result.failed}\n\nAlgunos hosts no pudieron ser eliminados.`,
             type: 'warning'
           }
         }
@@ -1247,17 +1327,17 @@ const formatLocal = (iso) => {
       </button>
 
       <button
-        v-if="selectedHosts.length > 0"
+        v-if="selectedHosts.length > 0 && canUseSSH"
         @click="openSSHModal('selected')"
         class="group relative overflow-hidden flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:via-rose-500 hover:to-red-500 text-white shadow-lg shadow-red-600/40 hover:shadow-red-500/50 transition-all duration-300 transform hover:scale-105 active:scale-95"
       >
         <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
         <Power class="w-4 h-4 relative z-10" />
-        <span class="relative z-10">Shutdown Selected ({{ selectedHosts.length }})</span>
+        <span class="relative z-10">Apagar Seleccionados ({{ selectedHosts.length }})</span>
       </button>
 
       <button
-        v-if="selectedHosts.length > 0"
+        v-if="selectedHosts.length > 0 && canDeleteResources"
         @click="deleteSelectedHosts"
         class="flex items-center justify-center gap-2 px-5 py-2 text-sm font-bold rounded-lg bg-rose-700 hover:bg-rose-800 text-white shadow-lg shadow-rose-600/50 transition-all duration-300 transform hover:scale-105 active:scale-95"
       >
@@ -1266,13 +1346,13 @@ const formatLocal = (iso) => {
       </button>
 
       <button
-        v-if="filterType === 'range'"
+        v-if="filterType === 'range' && canUseSSH"
         @click="openSSHModal('range')"
         class="group relative overflow-hidden flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold rounded-xl bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 hover:from-orange-500 hover:via-amber-500 hover:to-orange-500 text-white shadow-lg shadow-orange-600/40 hover:shadow-orange-500/50 transition-all duration-300 transform hover:scale-105 active:scale-95"
       >
         <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
         <Power class="w-4 h-4 relative z-10" />
-        <span class="relative z-10">Shutdown Range</span>
+        <span class="relative z-10">Apagar Rango</span>
       </button>
     </div>
 
@@ -1287,7 +1367,7 @@ const formatLocal = (iso) => {
         ? 'bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-slate-700/50'
         : 'bg-gradient-to-br from-white via-slate-50 to-white border-slate-200'"
     >
-      <table class="min-w-full divide-y" :class="isDark() ? 'divide-slate-700/50' : 'divide-slate-200'">
+      <table class="min-w-full divide-y" :class="isDark() ? 'divide-slate-700/50' : 'divide-slate-200'" role="table" aria-label="Tabla de hosts descubiertos">
         <thead 
           class="backdrop-blur-sm"
           :class="isDark() 
@@ -1344,6 +1424,25 @@ const formatLocal = (iso) => {
                 >Hostname</span>
                 <ArrowUp v-if="sortField === 'hostname' && sortDirection === 'asc'" class="w-3 h-3 text-cyan-400" />
                 <ArrowDown v-else-if="sortField === 'hostname' && sortDirection === 'desc'" class="w-3 h-3 text-cyan-400" />
+                <ChevronsUpDown v-else class="w-3 h-3 opacity-30 group-hover:opacity-60" :class="isDark() ? 'text-slate-400' : 'text-slate-500'" />
+              </button>
+            </th>
+            <th class="px-6 py-4 text-left">
+              <button 
+                type="button"
+                @click.stop="toggleSort('nickname')"
+                class="flex items-center gap-2 hover:opacity-80 transition-opacity group cursor-pointer"
+              >
+                <Pencil 
+                  class="w-4 h-4"
+                  :class="isDark() ? 'text-cyan-400' : 'text-cyan-600'"
+                />
+                <span 
+                  class="text-xs font-bold uppercase tracking-wider"
+                  :class="isDark() ? 'text-slate-200' : 'text-slate-700'"
+                >Apodo</span>
+                <ArrowUp v-if="sortField === 'nickname' && sortDirection === 'asc'" class="w-3 h-3 text-cyan-400" />
+                <ArrowDown v-else-if="sortField === 'nickname' && sortDirection === 'desc'" class="w-3 h-3 text-cyan-400" />
                 <ChevronsUpDown v-else class="w-3 h-3 opacity-30 group-hover:opacity-60" :class="isDark() ? 'text-slate-400' : 'text-slate-500'" />
               </button>
             </th>
@@ -1476,13 +1575,13 @@ const formatLocal = (iso) => {
             : 'divide-slate-200 bg-white'"
         >
           <tr v-if="loading && hosts.length === 0">
-            <td colspan="10" class="px-6 py-8">
+            <td colspan="11" class="px-6 py-8">
               <SkeletonLoader type="table" :rows="5" :columns="9" />
             </td>
           </tr>
           
           <tr v-else-if="hosts.length === 0">
-            <td colspan="10" class="px-6 py-8 text-center">
+            <td colspan="11" class="px-6 py-8 text-center">
               <div class="flex flex-col items-center gap-2">
                 <Search class="w-12 h-12 text-slate-600" />
                 <span class="text-slate-400 font-medium">No se encontraron hosts</span>
@@ -1491,7 +1590,7 @@ const formatLocal = (iso) => {
           </tr>
           
           <tr
-            v-for="host in filteredHosts"
+            v-for="host in paginatedHosts"
             :key="host.id"
             :class="[
               'transition-all duration-200 border-l-4',
@@ -1514,6 +1613,53 @@ const formatLocal = (iso) => {
 
             <td class="px-6 py-4 text-sm font-mono font-semibold text-cyan-300">{{ host.ip }}</td>
             <td class="px-6 py-4 text-sm text-slate-300">{{ host.hostname || 'N/A' }}</td>
+            <td class="px-6 py-4 text-sm">
+              <div v-if="editingNickname === host.ip" class="flex items-center gap-1">
+                <input
+                  v-model="nicknameInput"
+                  @keyup.enter="saveNickname(host)"
+                  @keyup.escape="cancelEditNickname()"
+                  class="w-32 px-2 py-1 text-sm rounded-lg border focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                  :class="isDark() 
+                    ? 'bg-slate-800 border-slate-600 text-slate-200' 
+                    : 'bg-white border-slate-300 text-slate-800'"
+                  placeholder="Apodo..."
+                  :disabled="savingNickname"
+                  ref="nicknameInputRef"
+                />
+                <button
+                  @click="saveNickname(host)"
+                  :disabled="savingNickname"
+                  class="flex items-center justify-center w-7 h-7 rounded-lg text-green-400 hover:text-green-300 bg-green-900/20 hover:bg-green-900/40 border border-green-700/30 transition-all duration-200"
+                  title="Guardar"
+                >
+                  <Check class="w-3.5 h-3.5" />
+                </button>
+                <button
+                  @click="cancelEditNickname()"
+                  class="flex items-center justify-center w-7 h-7 rounded-lg text-red-400 hover:text-red-300 bg-red-900/20 hover:bg-red-900/40 border border-red-700/30 transition-all duration-200"
+                  title="Cancelar"
+                >
+                  <X class="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div v-else class="flex items-center gap-1 group/nick">
+                <span :class="host.nickname ? (isDark() ? 'text-amber-300' : 'text-amber-600') : 'text-slate-500'">
+                  {{ host.nickname || '—' }}
+                </span>
+                <button
+                  v-if="canEditResources"
+                  @click="startEditNickname(host)"
+                  class="opacity-0 group-hover/nick:opacity-100 flex items-center justify-center w-6 h-6 rounded-md transition-all duration-200"
+                  :class="isDark() 
+                    ? 'text-slate-400 hover:text-cyan-400 hover:bg-slate-700' 
+                    : 'text-slate-400 hover:text-cyan-600 hover:bg-slate-100'"
+                  title="Editar apodo"
+                >
+                  <Pencil class="w-3 h-3" />
+                </button>
+              </div>
+            </td>
             <td class="px-6 py-4 text-sm font-mono text-slate-400">{{ host.mac || 'N/A' }}</td>
             <td class="px-6 py-4">
               <span v-if="host.vendor && host.vendor !== 'N/A'" class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
@@ -1561,6 +1707,7 @@ const formatLocal = (iso) => {
                 </button>
 
                 <button
+                  v-if="canDeleteResources"
                   @click="deleteHostConfirm(host.ip)"
                   class="flex items-center justify-center w-9 h-9 rounded-lg text-red-400 hover:text-red-300 bg-red-900/20 hover:bg-red-900/40 border border-red-700/30 hover:border-red-600/50 shadow-md shadow-red-400/10 hover:shadow-red-400/20 transition-all duration-200 transform hover:scale-110 active:scale-95"
                   title="Eliminar host"
@@ -1572,6 +1719,61 @@ const formatLocal = (iso) => {
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- Pagination controls -->
+    <div v-if="filteredHosts.length > 0"
+      class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 px-2">
+      <div class="flex items-center gap-3">
+        <span class="text-sm" :class="isDark() ? 'text-slate-400' : 'text-slate-600'">
+          Mostrando {{ (currentPage - 1) * pageSize + 1 }}-{{ Math.min(currentPage * pageSize, totalFiltered) }} de {{ totalFiltered }} hosts
+        </span>
+        <select
+          :value="pageSize"
+          @change="changePageSize(Number($event.target.value))"
+          class="px-2 py-1 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          :class="isDark() ? 'bg-slate-800 border border-slate-600 text-white' : 'bg-white border border-slate-300 text-slate-800'"
+        >
+          <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }} por página</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-1">
+        <button
+          @click="goToPage(1)"
+          :disabled="currentPage === 1"
+          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-30"
+          :class="isDark() ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:hover:bg-slate-800' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 disabled:hover:bg-white'"
+        >«</button>
+        <button
+          @click="goToPage(currentPage - 1)"
+          :disabled="currentPage === 1"
+          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-30"
+          :class="isDark() ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:hover:bg-slate-800' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 disabled:hover:bg-white'"
+        >‹</button>
+        <button
+          v-for="page in visiblePages"
+          :key="page"
+          @click="goToPage(page)"
+          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+          :class="page === currentPage
+            ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/30'
+            : isDark()
+              ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-300'"
+        >{{ page }}</button>
+        <button
+          @click="goToPage(currentPage + 1)"
+          :disabled="currentPage === totalPages"
+          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-30"
+          :class="isDark() ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:hover:bg-slate-800' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 disabled:hover:bg-white'"
+        >›</button>
+        <button
+          @click="goToPage(totalPages)"
+          :disabled="currentPage === totalPages"
+          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-30"
+          :class="isDark() ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:hover:bg-slate-800' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 disabled:hover:bg-white'"
+        >»</button>
+      </div>
     </div>
 
     <div
@@ -1629,14 +1831,14 @@ const formatLocal = (iso) => {
               <label class="relative flex items-center cursor-pointer">
                 <input type="radio" v-model="sshOSType" value="linux" class="peer sr-only" />
                 <div class="w-full px-4 py-3 bg-slate-800/50 border-2 border-slate-700 peer-checked:border-cyan-500 peer-checked:bg-cyan-500/10 rounded-xl transition-all flex items-center gap-2">
-                  <span class="text-2xl">🐧</span>
+                  <OSIcon name="linux" :size="28" :stroke-width="1.5" />
                   <span class="text-white font-medium">Linux / Unix</span>
                 </div>
               </label>
               <label class="relative flex items-center cursor-pointer">
                 <input type="radio" v-model="sshOSType" value="windows" class="peer sr-only" />
                 <div class="w-full px-4 py-3 bg-slate-800/50 border-2 border-slate-700 peer-checked:border-cyan-500 peer-checked:bg-cyan-500/10 rounded-xl transition-all flex items-center gap-2">
-                  <span class="text-2xl">🪟</span>
+                  <OSIcon name="windows" :size="28" :stroke-width="1.5" />
                   <span class="text-white font-medium">Windows</span>
                 </div>
               </label>
@@ -1792,11 +1994,19 @@ const formatLocal = (iso) => {
               </div>
               <p class="text-white font-medium text-lg">{{ selectedHost.hostname || 'N/A' }}</p>
             </div>
+
+            <div class="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+              <div class="flex items-center gap-2 mb-2">
+                <Pencil class="w-4 h-4 text-amber-300" />
+                <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Apodo</p>
+              </div>
+              <p class="text-white font-medium text-lg">{{ selectedHost.nickname || 'Sin apodo' }}</p>
+            </div>
             
             <div class="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
               <div class="flex items-center gap-2 mb-2">
                 <Network class="w-4 h-4 text-purple-400" />
-                <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">MAC Address</p>
+                <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Dirección MAC</p>
               </div>
               <p class="text-white font-mono text-lg">{{ selectedHost.mac || 'N/A' }}</p>
             </div>
@@ -1848,40 +2058,7 @@ const formatLocal = (iso) => {
             </div>
             <div class="flex items-center gap-3">
               <div class="p-3 bg-slate-700/50 rounded-xl">
-                <span
-                  v-if="
-                    selectedHost.os_name && selectedHost.os_name.toLowerCase().includes('windows')
-                  "
-                  class="text-3xl"
-                >
-                  🪟
-                </span>
-                <span
-                  v-else-if="
-                    selectedHost.os_name && selectedHost.os_name.toLowerCase().includes('linux')
-                  "
-                  class="text-3xl"
-                >
-                  🐧
-                </span>
-                <span
-                  v-else-if="
-                    selectedHost.os_name && selectedHost.os_name.toLowerCase().includes('android')
-                  "
-                  class="text-3xl"
-                >
-                  🤖
-                </span>
-                <span
-                  v-else-if="
-                    selectedHost.os_name &&
-                    (selectedHost.os_name.toLowerCase().includes('ios') ||
-                      selectedHost.os_name.toLowerCase().includes('mac'))
-                  "
-                >
-                  <Apple class="w-8 h-8 text-slate-300" />
-                </span>
-                <Monitor v-else class="w-8 h-8 text-slate-500" />
+                <OSIcon :name="selectedHost.os_name || ''" :size="32" :stroke-width="1.5" />
               </div>
               
               <div>

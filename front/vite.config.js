@@ -15,7 +15,6 @@ export default defineConfig({
     },
   },
   build: {
-    // Optimizaciones para Lighthouse
     target: 'es2015',
     minify: 'esbuild',
     terserOptions: {

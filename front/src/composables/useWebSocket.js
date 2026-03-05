@@ -1,7 +1,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
-const WS_URL = 'ws://192.168.0.10:8000/ws'
-const RECONNECT_DELAY = 3000 // 3 segundos
+const WS_BASE = 'ws://192.168.0.11:8000/ws'
+const RECONNECT_DELAY = 3000 
 const MAX_RECONNECT_ATTEMPTS = 5
 
 export function useWebSocket() {
@@ -17,8 +17,16 @@ export function useWebSocket() {
       return
     }
 
+    const token = localStorage.getItem('admin_token')
+    if (!token) {
+      // Sin token no intentar conectar, reintentar después
+      reconnectTimeout.value = setTimeout(connect, RECONNECT_DELAY)
+      return
+    }
+
     try {
-      ws.value = new WebSocket(WS_URL)
+      const wsUrl = `${WS_BASE}?token=${token}`
+      ws.value = new WebSocket(wsUrl)
 
       ws.value.onopen = () => {
         connected.value = true

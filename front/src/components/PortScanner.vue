@@ -1,16 +1,24 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { scannerAPI } from '../api/scanner'
 import { Shield, RefreshCw, Network, Server, X } from 'lucide-vue-next'
 import { useScanState } from '../composables/useScanState'
 import { useTheme } from '../composables/useTheme'
+import { usePermissions } from '../composables/usePermissions'
+import ActiveScanBanner from './ActiveScanBanner.vue'
+import NumberStepper from './NumberStepper.vue'
 
-const { isScanning, startScan, endScan } = useScanState()
+const { isScanning, currentScanType, startScan, endScan, externalCancelFlag } = useScanState()
 const { isDark } = useTheme()
+const { canExecuteScans } = usePermissions()
+
+const isMyOwnScan = computed(() => currentScanType.value === 'port-scan')
+const otherScanActive = computed(() => isScanning.value && !isMyOwnScan.value)
 
 const hosts = ref('') 
 const ports = ref('1-1024')
 const hostTimeout = ref(45)
+const concurrency = ref(50)
 const results = ref(null)
 const loading = ref(false)
 const error = ref('')
@@ -18,7 +26,7 @@ let abortController = null
 
 const scanPortsSegment = async () => {
   if (!hosts.value.trim()) {
-    error.value = 'Please enter at least one host'
+    error.value = 'Por favor ingresa al menos un host'
     return
   }
 
@@ -28,32 +36,29 @@ const scanPortsSegment = async () => {
     .filter(Boolean)
 
   if (hostsArray.length === 0) {
-    error.value = 'Please enter at least one valid host'
+    error.value = 'Por favor ingresa al menos un host válido'
     return
   }
 
   loading.value = true
-  startScan('port-scan')
   error.value = ''
   results.value = null
   abortController = new AbortController()
+  startScan('port-scan', abortController)
 
   try {
-    const data = await scannerAPI.scanPortsSegment(hostsArray, ports.value, abortController.signal, hostTimeout.value)
+    const data = await scannerAPI.scanPortsSegment(hostsArray, ports.value, abortController.signal, hostTimeout.value, concurrency.value)
     results.value = data.results || data
   } catch (err) {
-    if (err.name === 'CancelError' || err.code === 'ERR_CANCELED') {
+    if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
       error.value = 'Escaneo cancelado'
     } else {
-      error.value = err.response?.data?.detail || 'Error scanning ports'
+      error.value = err.response?.data?.detail || 'Error escaneando puertos'
     }
   } finally {
     abortController = null
     loading.value = false
     endScan()
-    setTimeout(() => {
-      progress.value = 0
-    }, 2000)
   }
 }
 
@@ -64,13 +69,16 @@ const cancelScan = () => {
     loading.value = false
     endScan()
   }
-  if (progressInterval) {
-    clearInterval(progressInterval)
-    progressInterval = null
-  }
-  progress.value = 0
-  timeRemaining.value = 0
 }
+
+// Detectar cancelación externa (desde ActiveScanBanner u otro componente)
+watch(externalCancelFlag, (cancelled) => {
+  if (cancelled && isMyOwnScan.value && loading.value) {
+    error.value = 'Escaneo cancelado'
+    loading.value = false
+    endScan()
+  }
+})
 
 const presetPorts = [
   { label: 'Common (1-1024)', value: '1-1024' },
@@ -83,6 +91,9 @@ const presetPorts = [
 
 <template>
   <div class="space-y-8">
+    <!-- Banner de escaneo activo de otro tipo -->
+    <ActiveScanBanner myScanType="port-scan" />
+
     <div 
       class="relative rounded-3xl p-8 shadow-2xl overflow-hidden"
       :class="isDark() ? 'bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-slate-700/50' : 'bg-gradient-to-br from-white via-slate-50 to-white border border-slate-200'"
@@ -195,40 +206,45 @@ const presetPorts = [
           <label 
             class="text-sm font-semibold uppercase tracking-wide"
             :class="isDark() ? 'text-slate-300' : 'text-slate-700'"
-          >Timeout por host (segundos)</label>
+          >Timeout por host</label>
         </div>
-        <div class="flex items-center gap-4">
-          <input
-            v-model.number="hostTimeout"
-            type="number"
-            min="10"
-            max="180"
-            class="w-28 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/60 font-mono text-lg"
-            :class="isDark() ? 'bg-slate-900/50 border border-slate-600 text-white' : 'bg-white border border-slate-300 text-slate-800'"
-          />
-          <span 
-            class="text-sm"
-            :class="isDark() ? 'text-slate-400' : 'text-slate-500'"
-          >
-            Recomendado: 30-60s para escaneo de puertos
-          </span>
+        <NumberStepper v-model="hostTimeout" :min="10" :max="180" :step="5" unit="s"
+          hint="Recomendado: 30-60s para escaneo de puertos"
+          accent-color="purple" :show-range="true" />
+      </div>
+
+      <!-- Concurrencia -->
+      <div>
+        <div class="flex items-center gap-2 mb-3">
+          <svg class="w-5 h-5" :class="isDark() ? 'text-purple-400' : 'text-purple-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <label 
+            class="text-sm font-semibold uppercase tracking-wide"
+            :class="isDark() ? 'text-slate-300' : 'text-slate-700'"
+          >IPs simultáneas</label>
         </div>
+        <NumberStepper v-model="concurrency" :min="1" :max="50" unit="IPs"
+          :presets="[5, 10, 25, 50]"
+          accent-color="purple" :show-range="true" />
+        <p class="text-xs mt-1.5" :class="isDark() ? 'text-slate-500' : 'text-slate-400'">Más simultáneas = más rápido pero más carga de red</p>
       </div>
 
       <button
+        v-if="canExecuteScans"
         @click="scanPortsSegment"
-        :disabled="loading || isScanning"
+        :disabled="loading || otherScanActive"
         class="w-full group relative overflow-hidden py-6 rounded-2xl font-bold text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl"
         :class="loading 
           ? 'bg-slate-800 border-2 border-slate-600' 
           : 'bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 hover:from-purple-500 hover:via-blue-500 hover:to-purple-500 border-2 border-purple-400/50 hover:border-purple-300 shadow-purple-500/20 hover:shadow-purple-400/30'"
       >
-        <div v-if="!loading && !isScanning" class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+        <div v-if="!loading && !otherScanActive" class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
         
         <div class="relative z-10 flex items-center justify-center gap-3 text-white">
           <RefreshCw :class="['w-6 h-6', loading && 'animate-spin']" />
           <span class="tracking-wide">
-            {{ loading ? 'Escaneando Puertos...' : isScanning ? 'Otro escaneo en curso...' : 'Iniciar Escaneo de Puertos' }}
+            {{ loading ? 'Escaneando Puertos...' : otherScanActive ? 'Otro escaneo en curso...' : 'Iniciar Escaneo de Puertos' }}
           </span>
         </div>
       </button>

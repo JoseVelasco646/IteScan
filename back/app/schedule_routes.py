@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import os
+import logging
 
 import asyncio
+import time
 
 from app.database import get_db
-from app.models import ScanSchedule
+from app.models import ScanSchedule, ScanHistory, AuditLog
+from app.auth import require_role
 from app.schedule_schemas import (
     ScanScheduleCreate,
     ScanScheduleUpdate,
@@ -16,7 +19,7 @@ from app.schedule_schemas import (
     ScanSchedulePublic
 )
 from app import crud
-from app.ping import (
+from app.scanners import (
     ping_multiple,
     expand_network,
     scan_ports_segment,
@@ -29,27 +32,88 @@ from app.ssh_operations import shutdown_ip_range, shutdown_host_ssh
 
 router = APIRouter(prefix="/api/schedules", tags=["schedules"])
 
-# Detectar zona horaria local
-# Por defecto intentar usar la zona horaria del sistema
+logger = logging.getLogger(__name__)
+
 try:
-    # Intentar obtener la zona horaria del sistema
-    LOCAL_TZ = ZoneInfo('America/Tijuana')  # Ajustar según tu zona horaria
+   
+    LOCAL_TZ = ZoneInfo('America/Tijuana')  
 except Exception:
     LOCAL_TZ = None
 
 scan_result_cache = {}
+_CACHE_MAX_SIZE = 100
+_CACHE_TTL_SECONDS = 3600  # 1 hora
+
+
+def _cache_set(schedule_id: int, data: dict):
+    import time as _t
+    now = _t.time()
+    expired = [k for k, v in scan_result_cache.items() if now - v.get("_ts", 0) > _CACHE_TTL_SECONDS]
+    for k in expired:
+        scan_result_cache.pop(k, None)
+    while len(scan_result_cache) >= _CACHE_MAX_SIZE:
+        oldest = min(scan_result_cache, key=lambda k: scan_result_cache[k].get("_ts", 0))
+        scan_result_cache.pop(oldest, None)
+    data["_ts"] = now
+    scan_result_cache[schedule_id] = data
+
+
+def _cache_get(schedule_id: int):
+    import time as _t
+    entry = scan_result_cache.get(schedule_id)
+    if entry is None:
+        return None
+    if _t.time() - entry.get("_ts", 0) > _CACHE_TTL_SECONDS:
+        scan_result_cache.pop(schedule_id, None)
+        return None
+    # Retornar sin el campo interno _ts
+    return {k: v for k, v in entry.items() if k != "_ts"}
 
 def get_ws_manager():
     from app.websocket_manager import ws_manager
     return ws_manager
 
+def get_user_info_from_request(request: Request) -> dict:
+    try:
+        from app.auth import decode_token
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            payload = decode_token(auth_header.split(" ")[1])
+            return {"user_id": payload.get("user_id"), "username": payload.get("username")}
+    except Exception:
+        pass
+    return {"user_id": None, "username": None}
+
+def schedule_audit_log(db: Session, request: Request, action: str, description: str, details: dict = None):
+    try:
+        user_info = get_user_info_from_request(request)
+        client_ip = request.client.host
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            client_ip = forwarded.split(",")[0].strip()
+        entry = AuditLog(
+            user_id=user_info["user_id"],
+            username=user_info["username"],
+            action=action,
+            category="scheduler",
+            description=description,
+            details=details,
+            ip_address=client_ip
+        )
+        db.add(entry)
+        db.commit()
+    except Exception as e:
+        logger.error(f"Error guardando audit log: {e}")
+        try:
+            db.rollback()
+        except:
+            pass
+
 def schedule_to_dict(schedule: ScanSchedule) -> dict:
-    """Convierte un schedule a dict sin contraseñas (para WebSocket)"""
     schedule_dict = ScanSchedulePublic.from_orm(schedule).dict()
     return serialize_for_json(schedule_dict)
 
 def serialize_for_json(obj):
-    """Serializa recursivamente objetos para JSON, convirtiendo datetime a strings"""
     if isinstance(obj, datetime):
         return obj.isoformat()
     elif isinstance(obj, dict):
@@ -60,24 +124,19 @@ def serialize_for_json(obj):
         return obj
 
 def calculate_next_run(schedule: ScanSchedule) -> datetime:
-    # Obtener la hora actual en la zona horaria local
     if LOCAL_TZ:
         now = datetime.now(LOCAL_TZ)
     else:
         now = datetime.now().astimezone()
     
     if schedule.frequency == 'hourly':
-        # Próxima hora es simplemente una hora después
         return now + timedelta(hours=1)
     
     elif schedule.frequency == 'daily':
-        # Parsear hora configurada
         hour, minute = map(int, schedule.time.split(':'))
         
-        # Crear próxima ejecución para hoy a la hora especificada
         next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         
-        # Si esa hora ya pasó hoy, programar para mañana
         if next_run <= now:
             next_run += timedelta(days=1)
         
@@ -86,18 +145,15 @@ def calculate_next_run(schedule: ScanSchedule) -> datetime:
     elif schedule.frequency == 'weekly':
         hour, minute = map(int, schedule.time.split(':'))
         
-        # Crear próxima ejecución con la hora especificada
         next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         
-        # Calcular días hasta el día de la semana objetivo
-        # weekday() devuelve 0=Lunes, 1=Martes, etc.
         current_weekday = now.weekday()
-        target_weekday = schedule.day_of_week if schedule.day_of_week != 0 else 7  # Convertir domingo de 0 a 7
-        target_weekday = target_weekday - 1 if target_weekday != 7 else 6  # Ajustar: 1=Lunes(0), 7=Domingo(6)
+        target_weekday = schedule.day_of_week if schedule.day_of_week != 0 else 7  
+        target_weekday = target_weekday - 1 if target_weekday != 7 else 6  
         
         days_ahead = (target_weekday - current_weekday) % 7
         
-        # Si es el mismo día pero la hora ya pasó, programar para la próxima semana
+       
         if days_ahead == 0 and next_run <= now:
             days_ahead = 7
         
@@ -107,7 +163,7 @@ def calculate_next_run(schedule: ScanSchedule) -> datetime:
     elif schedule.frequency == 'monthly':
         hour, minute = map(int, schedule.time.split(':'))
         
-        # Intentar crear la fecha para este mes
+        
         try:
             next_run = now.replace(
                 day=schedule.day_of_month,
@@ -117,15 +173,13 @@ def calculate_next_run(schedule: ScanSchedule) -> datetime:
                 microsecond=0
             )
             
-            # Si esa fecha ya pasó este mes, programar para el próximo mes
+           
             if next_run <= now:
                 if now.month == 12:
                     next_run = next_run.replace(year=now.year + 1, month=1)
                 else:
                     next_run = next_run.replace(month=now.month + 1)
         except ValueError:
-            # El día no existe en este mes (ej: 31 de febrero)
-            # Programar para el próximo mes que tenga ese día
             if now.month == 12:
                 if LOCAL_TZ:
                     next_run = datetime(now.year + 1, 1, schedule.day_of_month, hour, minute, 0, 0, tzinfo=LOCAL_TZ)
@@ -144,18 +198,22 @@ def calculate_next_run(schedule: ScanSchedule) -> datetime:
 @router.post("", response_model=ScanSchedulePublic, status_code=status.HTTP_201_CREATED)
 async def create_schedule(
     schedule_data: ScanScheduleCreate,
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
+    _role=Depends(require_role("mod"))
 ):
-    """Crear un nuevo schedule (sin devolver contraseñas)"""
-    # Crear el schedule en la DB
-    schedule = ScanSchedule(**schedule_data.dict())
+    user_info = get_user_info_from_request(request)
     
-    # Calcular next_run
+    schedule = ScanSchedule(**schedule_data.dict())
+    schedule.created_by = user_info["username"]
+    schedule.updated_by = user_info["username"]
+   
     schedule.next_run = calculate_next_run(schedule)
     
     db.add(schedule)
     db.commit()
     db.refresh(schedule)
+    schedule_audit_log(db, request, "create", f"Scheduler creado: {schedule.name}", {"schedule_id": schedule.id, "name": schedule.name, "scan_type": schedule.scan_type})
     ws_manager = get_ws_manager()
     await ws_manager.send_schedule_update({
         "action" : "created",
@@ -171,7 +229,6 @@ def list_schedules(
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    """Listar todos los schedules (sin contraseñas)"""
     schedules = db.query(ScanSchedule).offset(skip).limit(limit).all()
     return schedules
 
@@ -181,10 +238,9 @@ def get_schedule(
     schedule_id: int,
     db: Session = Depends(get_db)
 ):
-    """Obtener un schedule por ID (sin contraseñas)"""
     schedule = db.query(ScanSchedule).filter(ScanSchedule.id == schedule_id).first()
     if not schedule:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+        raise HTTPException(status_code=404, detail="Programación no encontrada")
     return schedule
 
 
@@ -192,17 +248,22 @@ def get_schedule(
 async def update_schedule(
     schedule_id: int,
     schedule_data: ScanScheduleUpdate,
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
+    _role=Depends(require_role("mod"))
 ):
-    """Actualizar un schedule (sin devolver contraseñas)"""
     schedule = db.query(ScanSchedule).filter(ScanSchedule.id == schedule_id).first()
     if not schedule:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+        raise HTTPException(status_code=404, detail="Programación no encontrada")
+    
+    user_info = get_user_info_from_request(request)
     
     # Actualizar campos
     update_data = schedule_data.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(schedule, field, value)
+    
+    schedule.updated_by = user_info["username"]
     
     # Recalcular next_run
     schedule.next_run = calculate_next_run(schedule)
@@ -213,6 +274,7 @@ async def update_schedule(
     
     db.commit()
     db.refresh(schedule)
+    schedule_audit_log(db, request, "update", f"Scheduler actualizado: {schedule.name}", {"schedule_id": schedule_id, "changes": update_data})
 
     ws_manager = get_ws_manager()
     
@@ -229,13 +291,16 @@ async def update_schedule(
 @router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_schedule(
     schedule_id: int,
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
+    _role=Depends(require_role("mod"))
 ):
-    """Eliminar un schedule"""
     schedule = db.query(ScanSchedule).filter(ScanSchedule.id == schedule_id).first()
     if not schedule:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+        raise HTTPException(status_code=404, detail="Programación no encontrada")
     
+    schedule_name = schedule.name
+    schedule_audit_log(db, request, "delete", f"Scheduler eliminado: {schedule_name}", {"schedule_id": schedule_id, "name": schedule_name})
     db.delete(schedule)
     db.commit()
     try:
@@ -254,15 +319,19 @@ async def delete_schedule(
 @router.post("/{schedule_id}/toggle", response_model=ScanSchedulePublic)
 async def toggle_schedule(
     schedule_id: int,
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
+    _role=Depends(require_role("mod"))
 ):
-    """Activar/Desactivar un schedule (sin devolver contraseñas)"""
     schedule = db.query(ScanSchedule).filter(ScanSchedule.id == schedule_id).first()
     if not schedule:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+        raise HTTPException(status_code=404, detail="Programación no encontrada")
+    
+    user_info = get_user_info_from_request(request)
     
     # Toggle enabled
     schedule.enabled = not schedule.enabled
+    schedule.updated_by = user_info["username"]
     
     if schedule.enabled:
         # Recalcular next_run
@@ -276,6 +345,7 @@ async def toggle_schedule(
         schedule.updated_at = datetime.now().astimezone()
     db.commit()
     db.refresh(schedule)
+    schedule_audit_log(db, request, "update", f"Scheduler {'activado' if schedule.enabled else 'desactivado'}: {schedule.name}", {"schedule_id": schedule_id, "enabled": schedule.enabled})
     
     return schedule
 
@@ -283,16 +353,19 @@ async def toggle_schedule(
 @router.post("/{schedule_id}/run-now", status_code=status.HTTP_202_ACCEPTED)
 async def run_schedule_now(
     schedule_id: int,
+    request: Request,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _role=Depends(require_role("op"))
 ):
-    """Ejecutar un schedule inmediatamente"""
     schedule = db.query(ScanSchedule).filter(ScanSchedule.id == schedule_id).first()
     if not schedule:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+        raise HTTPException(status_code=404, detail="Programación no encontrada")
     
-    # Ejecutar en background
-    background_tasks.add_task(execute_scheduled_scan, schedule_id, db)
+    schedule_audit_log(db, request, "scan", f"Ejecución manual de scheduler: {schedule.name}", {"schedule_id": schedule_id, "name": schedule.name})
+    
+    from app.database import SessionLocal
+    background_tasks.add_task(execute_scheduled_scan, schedule_id, SessionLocal())
     
     return {"message": "Scan iniciado", "schedule_id": schedule_id}
 
@@ -301,23 +374,165 @@ async def run_schedule_now(
 def get_schedule_result(schedule_id : int, db: Session = Depends(get_db)):
     schedule = db.query(ScanSchedule).filter(ScanSchedule.id== schedule_id).first()
     if not schedule:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+        raise HTTPException(status_code=404, detail="Programación no encontrada")
 
-    if schedule_id not in scan_result_cache:
-        return {"schedule_id": schedule_id,
-        "has_results": False, "message": "No se ha ejecutado scans odvia"}
+    # Primero buscar en cache (resultado más reciente en memoria)
+    cached = _cache_get(schedule_id)
+    if cached is not None:
+        return { "schedule_id" : schedule_id, "has_results": True, "results": cached}
 
-    return { "schedule_id" : schedule_id, "has_results": True, "results": scan_result_cache[schedule_id]}
+    # Si no está en cache, buscar el último resultado en la base de datos
+    latest = db.query(ScanHistory).filter(
+        ScanHistory.schedule_id == schedule_id
+    ).order_by(ScanHistory.executed_at.desc()).first()
+    
+    if not latest:
+        return {"schedule_id": schedule_id, "has_results": False, "message": "No se han ejecutado escaneos todavía"}
+
+    return {
+        "schedule_id": schedule_id,
+        "has_results": True,
+        "results": {
+            "timestamp": latest.executed_at.isoformat() if latest.executed_at else None,
+            "scan_type": latest.scan_type,
+            "action_type": latest.action_type,
+            "targets_count": latest.targets_count,
+            "scan_results": latest.scan_results,
+            "shutdown_results": latest.shutdown_results,
+            "status": latest.status,
+            "error": latest.error_message,
+            "duration_seconds": latest.duration_seconds
+        }
+    }
+
+
+@router.get("/history/all")
+def get_all_scan_history(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    total = db.query(ScanHistory).count()
+    entries = db.query(ScanHistory).order_by(
+        ScanHistory.executed_at.desc()
+    ).offset(skip).limit(limit).all()
+    
+    return {
+        "total": total,
+        "items": [
+            {
+                "id": e.id,
+                "schedule_id": e.schedule_id,
+                "schedule_name": e.schedule_name,
+                "scan_type": e.scan_type,
+                "action_type": e.action_type,
+                "targets_count": e.targets_count,
+                "status": e.status,
+                "duration_seconds": e.duration_seconds,
+                "error_message": e.error_message,
+                "executed_at": e.executed_at.isoformat() if e.executed_at else None,
+            }
+            for e in entries
+        ]
+    }
+
+
+@router.get("/{schedule_id}/history")
+def get_schedule_history(
+    schedule_id: int,
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    schedule = db.query(ScanSchedule).filter(ScanSchedule.id == schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Programación no encontrada")
+    
+    total = db.query(ScanHistory).filter(ScanHistory.schedule_id == schedule_id).count()
+    entries = db.query(ScanHistory).filter(
+        ScanHistory.schedule_id == schedule_id
+    ).order_by(ScanHistory.executed_at.desc()).offset(skip).limit(limit).all()
+    
+    return {
+        "schedule_id": schedule_id,
+        "schedule_name": schedule.name,
+        "total": total,
+        "items": [
+            {
+                "id": e.id,
+                "schedule_id": e.schedule_id,
+                "schedule_name": e.schedule_name,
+                "scan_type": e.scan_type,
+                "action_type": e.action_type,
+                "targets_count": e.targets_count,
+                "status": e.status,
+                "duration_seconds": e.duration_seconds,
+                "error_message": e.error_message,
+                "executed_at": e.executed_at.isoformat() if e.executed_at else None,
+            }
+            for e in entries
+        ]
+    }
+
+
+@router.get("/history/{history_id}/detail")
+def get_history_detail(
+    history_id: int,
+    db: Session = Depends(get_db)
+):
+    entry = db.query(ScanHistory).filter(ScanHistory.id == history_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="History entry not found")
+    
+    return {
+        "id": entry.id,
+        "schedule_id": entry.schedule_id,
+        "schedule_name": entry.schedule_name,
+        "scan_type": entry.scan_type,
+        "action_type": entry.action_type,
+        "targets_count": entry.targets_count,
+        "status": entry.status,
+        "duration_seconds": entry.duration_seconds,
+        "scan_results": entry.scan_results,
+        "shutdown_results": entry.shutdown_results,
+        "error_message": entry.error_message,
+        "executed_at": entry.executed_at.isoformat() if entry.executed_at else None,
+    }
+
+
+@router.delete("/history/{history_id}")
+def delete_history_entry(
+    history_id: int,
+    db: Session = Depends(get_db),
+    _role=Depends(require_role("mod"))
+):
+    entry = db.query(ScanHistory).filter(ScanHistory.id == history_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="History entry not found")
+    
+    db.delete(entry)
+    db.commit()
+    return {"message": "Entrada eliminada"}
 
 
 async def execute_scheduled_scan(schedule_id: int, db: Session):
-    """Ejecuta un escaneo programado"""
+    
+    try:
+        await _execute_scheduled_scan_inner(schedule_id, db)
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
+async def _execute_scheduled_scan_inner(schedule_id: int, db: Session):
     schedule = db.query(ScanSchedule).filter(ScanSchedule.id == schedule_id).first()
     if not schedule or not schedule.enabled:
         return
 
     scan_results = []
-    scan_status = 'sucess'
+    start_time = time.time()
     
     try:
         # Determinar targets
@@ -368,22 +583,29 @@ async def execute_scheduled_scan(schedule_id: int, db: Session):
                     scan_results = results
 
                 else:
-                    from app.ping import get_mac_single_host
+                    from app.scanners import get_mac_single_host
                     results = []
                     for target in targets:
                         mac, vendor = await asyncio.to_thread(get_mac_single_host, target)
-                        results.append({"ip":target, "mac":target, "vendor": vendor})
+                        results.append({"ip": target, "mac": mac, "vendor": vendor})
                     scan_results = results        
 
             elif schedule.scan_type == 'full':
-                # Full scan con guardado en base de datos
+                # Full scan con guardado en base de datos (solo IPs activas)
                 from app import crud
                 results = []
                 for target in targets:
                     try:
                         result = await full_host_scan(target, emit_progress=True, scan_id=str(schedule_id))
-                        # Guardar en la base de datos
-                        crud.create_or_update_host(db, result)
+                        host_status = result.get("status", "unknown")
+                        if host_status == "up":
+                            # Solo guardar hosts activos
+                            crud.create_or_update_host(db, result)
+                        else:
+                            # Si ya existía, marcar como inactivo
+                            existing = crud.get_host_by_ip(db, target)
+                            if existing:
+                                crud.mark_host_as_down(db, target)
                         results.append(result)
                     except Exception as e:
                         results.append({"host": target, "status": "error", "error": str(e)})
@@ -401,33 +623,71 @@ async def execute_scheduled_scan(schedule_id: int, db: Session):
                 if schedule.shutdown_targets:
                     shutdown_targets = [ip.strip() for ip in schedule.shutdown_targets.split(',')]
                 
-                # Ejecutar apagado en PARALELO para todos los hosts
+                # Primero hacer ping para detectar cuáles están activas
+                try:
+                    ping_results = await ping_multiple(shutdown_targets)
+                    active_ips = []
+                    inactive_ips = []
+                    for pr in ping_results:
+                        ip = pr.get('host', pr.get('ip', ''))
+                        if pr.get('status') == 'up' or pr.get('alive', False):
+                            active_ips.append(ip)
+                        else:
+                            inactive_ips.append(ip)
+                except Exception:
+                    # Si falla el ping, intentar con todas
+                    active_ips = shutdown_targets
+                    inactive_ips = []
+                
+                # Solo intentar apagar IPs activas
                 async def shutdown_single(target_ip):
                     try:
-                        await shutdown_host_ssh(
+                        result = await shutdown_host_ssh(
                             host=target_ip,
                             username=schedule.ssh_username,
                             password=schedule.ssh_password,
                         )
-                        return {"host": target_ip, "status": "success"}
+                        # Verificar el resultado real de shutdown_host_ssh
+                        if result.get('success', False):
+                            return {"host": target_ip, "status": "success", "message": result.get("message", "")}
+                        else:
+                            return {"host": target_ip, "status": "error", "error": result.get("message", "Fallo en apagado")}
                     except Exception as e:
                         return {"host": target_ip, "status": "error", "error": str(e)}
                 
-                # Ejecutar todos los apagados en paralelo
-                shutdown_results = await asyncio.gather(
-                    *[shutdown_single(ip) for ip in shutdown_targets],
-                    return_exceptions=True
-                )
+                if active_ips:
+                    # Ejecutar apagados en paralelo solo para IPs activas
+                    raw_results = await asyncio.gather(
+                        *[shutdown_single(ip) for ip in active_ips],
+                        return_exceptions=True
+                    )
+                    
+                    shutdown_results = [
+                        r if isinstance(r, dict) else {"host": "unknown", "status": "error", "error": str(r)}
+                        for r in raw_results
+                    ]
                 
-                # Procesar resultados que podrían ser excepciones
-                shutdown_results = [
-                    r if isinstance(r, dict) else {"host": "unknown", "status": "error", "error": str(r)}
-                    for r in shutdown_results
-                ]
+                # Agregar metadata de IPs activas/inactivas al resultado
+                success_ips = [r['host'] for r in shutdown_results if r.get('status') == 'success']
+                failed_ips = [r for r in shutdown_results if r.get('status') == 'error']
+                
+                shutdown_results = {
+                    "active_ips": active_ips,
+                    "inactive_ips": inactive_ips,
+                    "success_ips": success_ips,
+                    "failed_ips": failed_ips,
+                    "total_active": len(active_ips),
+                    "total_inactive": len(inactive_ips),
+                    "total_success": len(success_ips),
+                    "total_failed": len(failed_ips)
+                }
         
         # Actualizar last_run y next_run
         now_local = datetime.now(LOCAL_TZ) if LOCAL_TZ else datetime.now().astimezone()
-        scan_result_cache[schedule_id] = {
+        duration = time.time() - start_time
+        
+        # Guardar en cache (para compatibilidad) y en base de datos
+        result_data = {
             "timestamp": now_local.isoformat(),
             "scan_type" : schedule.scan_type,
             "action_type": schedule.action_type,
@@ -436,6 +696,22 @@ async def execute_scheduled_scan(schedule_id: int, db: Session):
             "shutdown_results": serialize_for_json(shutdown_results) if shutdown_results else None,
             "status": "success"
         }
+        _cache_set(schedule_id, result_data)
+        
+        # Persistir en base de datos
+        history_entry = ScanHistory(
+            schedule_id=schedule_id,
+            schedule_name=schedule.name,
+            scan_type=schedule.scan_type,
+            action_type=schedule.action_type,
+            targets_count=len(targets),
+            status="success",
+            duration_seconds=round(duration, 2),
+            scan_results=serialize_for_json(scan_results),
+            shutdown_results=serialize_for_json(shutdown_results) if shutdown_results else None,
+            executed_at=now_local
+        )
+        db.add(history_entry)
 
 
         schedule.last_run = now_local
@@ -446,13 +722,16 @@ async def execute_scheduled_scan(schedule_id: int, db: Session):
         ws_manager = get_ws_manager()
         await ws_manager.send_schedule_update({
             "action" : "executed",
-            "schedule": schedule_to_dict(schedule)
+            "schedule": schedule_to_dict(schedule),
+            "shutdown_results": serialize_for_json(shutdown_results) if shutdown_results else None
         })
 
 
     except Exception as e:
         now_local = datetime.now(LOCAL_TZ) if LOCAL_TZ else datetime.now().astimezone()
-        scan_result_cache[schedule_id] = {
+        duration = time.time() - start_time
+        
+        error_data = {
             "timestamp" : now_local.isoformat(),
             "scan_type" : schedule.scan_type if schedule else None,
             "action_type": schedule.action_type if schedule else None,
@@ -462,10 +741,30 @@ async def execute_scheduled_scan(schedule_id: int, db: Session):
             "status" : "error",
             "error" : str(e)
         }
-        db.rollback()
+        _cache_set(schedule_id, error_data)
+        
+        # Persistir error en base de datos
+        try:
+            history_entry = ScanHistory(
+                schedule_id=schedule_id,
+                schedule_name=schedule.name if schedule else None,
+                scan_type=schedule.scan_type if schedule else None,
+                action_type=schedule.action_type if schedule else None,
+                targets_count=0,
+                status="error",
+                duration_seconds=round(duration, 2),
+                scan_results=None,
+                shutdown_results=None,
+                error_message=str(e),
+                executed_at=now_local
+            )
+            db.add(history_entry)
+            db.commit()
+        except Exception:
+            db.rollback()
 
 async def execute_shutdown(schedule: ScanSchedule):
-    """Ejecuta el apagado automático de hosts en PARALELO"""
+    
     if not schedule.shutdown_targets or not schedule.ssh_username:
         return
     
@@ -499,9 +798,10 @@ async def shutdown_network_segment(
     ssh_password: str,
     
     background_tasks: BackgroundTasks = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _role=Depends(require_role("op"))
 ):
-    """Apagar todos los hosts en un segmento de red (en PARALELO)"""
+   
     try:
         # Expandir red a lista de IPs
         targets = expand_network(target_subnet)
@@ -538,7 +838,7 @@ async def shutdown_segment_background(
     password: str,
     
 ):
-    """Apaga múltiples hosts en PARALELO"""
+   
     async def shutdown_single(target_ip):
         try:
             await shutdown_host_ssh(

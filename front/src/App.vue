@@ -1,61 +1,81 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { Shield, Sun, Moon, Lock } from 'lucide-vue-next'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { Shield, Sun, Moon, Users, LogOut, ShieldCheck, Bell, BellOff } from 'lucide-vue-next'
+import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import ToastNotification from './components/ToastNotification.vue'
 import { useToast } from './composables/useToast'
 import { useTheme } from './composables/useTheme'
+import { usePermissions } from './composables/usePermissions'
 
 const router = useRouter()
+const route = useRoute()
 const isBackendOnline = ref(false)
-const isIpBlocked = ref(false)
+const isAuthenticated = ref(false)
+const adminUser = ref(null)
 let statusCheckInterval = null
 
-const { toasts } = useToast()
+const { toasts, warning: showWarningToast, muted: toastsMuted, setMuted: setToastsMuted } = useToast()
 const { theme, toggleTheme, isDark } = useTheme()
+const { canManageUsers, userRole, isSuperAdmin, ROLE_LABELS, refreshPermissions } = usePermissions()
+
+const API_URL = import.meta.env.VITE_API_URL || window.location.origin.replace(':3000', ':8000')
 
 const checkBackendStatus = async () => {
-  if (router.currentRoute.value.path === '/access-denied') {
-    return
-  }
-
   try {
-    const response = await axios.get('http://192.168.0.10:8000/health', { timeout: 3000 })
+    const response = await axios.get(`${API_URL}/health`, { timeout: 3000 })
     isBackendOnline.value = true
-    isIpBlocked.value = false
   } catch (error) {
-    if (error.response && error.response.status === 403) {
-      isIpBlocked.value = true
-      
-      try {
-        const ipResponse = await axios.get('http://192.168.0.10:8000/api/get-client-ip', { 
-          timeout: 2000,
-          validateStatus: () => true 
-        })
-        if (ipResponse.data && ipResponse.data.ip) {
-          localStorage.setItem('blocked_ip', ipResponse.data.ip)
-        }
-      } catch (ipError) {
-        console.error('No se pudo obtener IP:', ipError)
-      }
-      
-      router.push('/access-denied')
-    }
     isBackendOnline.value = false
   }
 }
 
+const checkAuth = () => {
+  const token = localStorage.getItem('admin_token')
+  const userData = localStorage.getItem('admin_user')
+  isAuthenticated.value = !!token
+  if (userData) {
+    try { adminUser.value = JSON.parse(userData) } catch { adminUser.value = null }
+  }
+  // Force usePermissions computeds to re-evaluate
+  refreshPermissions()
+}
+
+const logout = () => {
+  localStorage.removeItem('admin_token')
+  localStorage.removeItem('admin_user')
+  isAuthenticated.value = false
+  adminUser.value = null
+  router.push('/login')
+}
+
+// Escuchar evento de sesión expirada
+const onSessionExpired = () => {
+  showWarningToast('Tu sesión ha expirado. Por favor inicia sesión nuevamente.', 'Sesión expirada')
+}
+
 onMounted(() => {
   checkBackendStatus()
- 
-  statusCheckInterval = setInterval(checkBackendStatus, 10000)
+  checkAuth()
+  // Reducir polling a 30 segundos (antes eran 10s)
+  statusCheckInterval = setInterval(() => {
+    checkBackendStatus()
+    checkAuth()
+  }, 30000)
+  
+  window.addEventListener('session-expired', onSessionExpired)
+})
+
+// Re-check auth on every route change (e.g. after login redirect)
+watch(() => route.fullPath, () => {
+  checkAuth()
 })
 
 onUnmounted(() => {
   if (statusCheckInterval) {
     clearInterval(statusCheckInterval)
   }
+  window.removeEventListener('session-expired', onSessionExpired)
 })
 
 // dark y light
@@ -78,15 +98,22 @@ const titleClasses = computed(() => {
 const subtitleClasses = computed(() => {
   return isDark() ? 'text-cyan-400/80' : 'text-cyan-600'
 })
+
+const isLoginPage = computed(() => {
+  return router.currentRoute.value.name === 'login'
+})
 </script>
 
 <template>
   <header
+    v-if="!isLoginPage"
     class="w-full p-6 md:p-8 border-b backdrop-blur-xl sticky top-0 z-50 transition-all duration-300"
     :class="headerClasses"
+    role="banner"
+    aria-label="Barra de navegación principal"
   >
     <div class="w-full flex items-center justify-between">
-      <div class="flex items-center gap-6">
+      <div class="flex items-center gap-6 cursor-pointer" @click="router.push('/')" role="link" title="Ir al inicio">
         <div 
           class="h-16 w-px bg-gradient-to-b from-transparent to-transparent"
           :class="isDark() ? 'via-cyan-500/50' : 'via-cyan-400/50'"
@@ -139,18 +166,74 @@ const subtitleClasses = computed(() => {
       </div>
 
       <div class="flex items-center gap-4">
+        <!-- Role badge -->
+        <div
+          v-if="isAuthenticated && adminUser"
+          class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider"
+          :class="
+            userRole === 'admin' ? (isDark() ? 'bg-purple-900/40 text-purple-300 border border-purple-500/30' : 'bg-purple-50 text-purple-700 border border-purple-200')
+            : userRole === 'mod' ? (isDark() ? 'bg-blue-900/40 text-blue-300 border border-blue-500/30' : 'bg-blue-50 text-blue-700 border border-blue-200')
+            : userRole === 'op' ? (isDark() ? 'bg-orange-900/40 text-orange-300 border border-orange-500/30' : 'bg-orange-50 text-orange-700 border border-orange-200')
+            : (isDark() ? 'bg-gray-700/40 text-gray-300 border border-gray-600' : 'bg-gray-100 text-gray-600 border border-gray-200')
+          "
+        >
+          <ShieldCheck v-if="isSuperAdmin" :size="14" class="text-amber-400" />
+          {{ adminUser?.display_name || adminUser?.username }} · {{ ROLE_LABELS[userRole] || 'Visor' }}
+        </div>
+
+        <!-- Admin panel button -->
         <button
-          v-if="!isIpBlocked"
-          @click="router.push('/whitelist')"
+          v-if="isAuthenticated && canManageUsers"
+          @click="router.push('/admin')"
           class="relative p-3 rounded-xl border-2 transition-all duration-300 group"
           :class="isDark() 
             ? 'border-slate-700/50 bg-slate-900/50 hover:bg-slate-800/50 hover:border-purple-500/50' 
             : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-purple-400/50 shadow-sm'"
-          title="Administrar Whitelist"
+          title="Gestión de Administradores"
         >
-          <Lock
+          <Users
             class="w-6 h-6 transition-transform duration-300 group-hover:scale-110"
             :class="isDark() ? 'text-purple-400' : 'text-purple-600'"
+          />
+        </button>
+
+        <!-- Toast mute toggle -->
+        <button
+          v-if="isAuthenticated"
+          @click="setToastsMuted(!toastsMuted)"
+          class="relative p-3 rounded-xl border-2 transition-all duration-300 group"
+          :class="isDark() 
+            ? 'border-slate-700/50 bg-slate-900/50 hover:bg-slate-800/50 hover:border-cyan-500/50' 
+            : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-cyan-400/50 shadow-sm'"
+          :aria-label="toastsMuted ? 'Activar notificaciones' : 'Silenciar notificaciones'"
+          :title="toastsMuted ? 'Notificaciones silenciadas — clic para activar' : 'Notificaciones activas — clic para silenciar'"
+        >
+          <BellOff
+            v-if="toastsMuted"
+            class="w-6 h-6 transition-transform duration-300 group-hover:scale-110"
+            :class="isDark() ? 'text-slate-500' : 'text-slate-400'"
+          />
+          <Bell
+            v-else
+            class="w-6 h-6 transition-transform duration-300 group-hover:scale-110"
+            :class="isDark() ? 'text-cyan-400' : 'text-cyan-600'"
+          />
+        </button>
+
+        <!-- Logout button -->
+        <button
+          v-if="isAuthenticated"
+          @click="logout"
+          aria-label="Cerrar sesión"
+          class="relative p-3 rounded-xl border-2 transition-all duration-300 group"
+          :class="isDark() 
+            ? 'border-slate-700/50 bg-slate-900/50 hover:bg-slate-800/50 hover:border-red-500/50' 
+            : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-red-400/50 shadow-sm'"
+          :title="`Cerrar sesión (${adminUser?.display_name || adminUser?.username || ''})`"
+        >
+          <LogOut
+            class="w-6 h-6 transition-transform duration-300 group-hover:scale-110"
+            :class="isDark() ? 'text-red-400' : 'text-red-600'"
           />
         </button>
 

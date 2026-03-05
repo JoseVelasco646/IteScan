@@ -1,31 +1,48 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { scannerAPI } from '../api/scanner'
 import { RefreshCw, Wifi, Activity, Network, GitBranch, X } from 'lucide-vue-next'
 import { useScanState } from '../composables/useScanState'
 import { useScanProgress } from '../composables/useScanProgress'
 import { useToast } from '../composables/useToast'
 import { useTheme } from '../composables/useTheme'
+import { usePermissions } from '../composables/usePermissions'
 import { useIPValidation } from '../composables/useIPValidation'
+import ActiveScanBanner from './ActiveScanBanner.vue'
+import NumberStepper from './NumberStepper.vue'
 
-const { isScanning, startScan, endScan } = useScanState()
+const { isScanning, currentScanType, startScan, endScan, externalCancelFlag } = useScanState()
 const { isDark } = useTheme()
+const { canExecuteScans } = usePermissions()
 const { cancelCurrentScan } = useScanProgress()
 const toast = useToast()
 const { isValidCIDR, isValidIP, validateIPRange, getErrorMessage } = useIPValidation()
+
+// Este componente es dueño de escaneos tipo 'ping'
+const isMyOwnScan = computed(() => currentScanType.value === 'ping')
+const otherScanActive = computed(() => isScanning.value && !isMyOwnScan.value)
 
 const hosts = ref('')
 const cidr = ref('')
 const rangeStart = ref('192.168.0.1')
 const rangeEnd = ref('192.168.0.10')
 const hostTimeout = ref(2) 
+const concurrency = ref(50)
 const results = ref([])
 const loading = ref(false)
 const error = ref('')
 const scanType = ref('hosts')
 const scanCompleted = ref(false)
+const filterMode = ref('all') // 'active' = solo activas, 'all' = activas e inactivas
+const saving = ref(false)
 const activos = computed(() => results.value.filter((r) => r.status === 'up').length)
 const inactivos = computed(() => results.value.filter((r) => r.status !== 'up').length)
+const filteredResults = computed(() => {
+  if (filterMode.value === 'active') {
+    return results.value.filter((r) => r.status === 'up')
+  }
+  return results.value
+})
 let abortController = null
 
 // noti
@@ -49,14 +66,14 @@ const playNotificationSound = () => {
     oscillator.start(audioContext.currentTime)
     oscillator.stop(audioContext.currentTime + 0.5)
   } catch (err) {
-    console.log('Audio notification not supported')
+    // audio not supported
   }
 }
 
 const pingHosts = async () => {
   if (!hosts.value.trim()) {
-    error.value = 'Please enter at least one host'
-    toast.error('Por favor ingrese al menos una IP', 'Ping Scanner')
+    error.value = 'Por favor ingresa al menos un host'
+    toast.error('Por favor ingrese al menos una IP', 'Escáner Ping')
     return
   }
 
@@ -69,30 +86,30 @@ const pingHosts = async () => {
   const invalidHosts = hostList.filter(host => !isValidIP(host))
   if (invalidHosts.length > 0) {
     error.value = `IPs inválidas: ${invalidHosts.join(', ')}`
-    toast.error(`IPs inválidas detectadas. Solo se aceptan direcciones IP: ${invalidHosts.slice(0, 3).join(', ')}${invalidHosts.length > 3 ? '...' : ''}`, 'Ping Scanner')
+    toast.error(`IPs inválidas detectadas. Solo se aceptan direcciones IP: ${invalidHosts.slice(0, 3).join(', ')}${invalidHosts.length > 3 ? '...' : ''}`, 'Escáner Ping')
     return
   }
 
   loading.value = true
   scanCompleted.value = false
-  startScan('ping')
   error.value = ''
   results.value = []
   abortController = new AbortController()
+  startScan('ping', abortController)
 
   try {
-    const data = await scannerAPI.pingHosts(hostList, abortController.signal, hostTimeout.value)
+    const data = await scannerAPI.pingHosts(hostList, abortController.signal, hostTimeout.value, concurrency.value)
     results.value = data.results || data
     scanCompleted.value = true
     playNotificationSound() 
-    toast.success(`Scan completado: ${activos.value} hosts activos encontrados`, 'Ping Scanner')
+    toast.success(`Scan completado: ${activos.value} hosts activos encontrados`, 'Escáner Ping')
   } catch (err) {
-    if (err.name === 'CancelError' || err.code === 'ERR_CANCELED') {
-      error.value = err.response?.data?.detail || 'Scan Canceld'
-      toast.warning('Escaneo cancelado por el usuario', 'Ping Scanner')
+    if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
+      error.value = err.response?.data?.detail || 'Escaneo cancelado'
+      toast.warning('Escaneo cancelado por el usuario', 'Escáner Ping')
     } else {
       error.value = err.response?.data?.detail || err.message || 'Error ejecutando ping'
-      toast.error(error.value, 'Ping Scanner')
+      toast.error(error.value, 'Escáner Ping')
     }
   } finally {
     loading.value = false
@@ -103,15 +120,15 @@ const pingHosts = async () => {
 
 const scanNetwork = async () => {
   if (!cidr.value.trim()) {
-    error.value = 'Please enter a CIDR network'
-    toast.error('Por favor ingrese una red CIDR', 'Ping Scanner')
+    error.value = 'Por favor ingresa una red CIDR'
+    toast.error('Por favor ingrese una red CIDR', 'Escáner Ping')
     return
   }
 
   // Validar formato CIDR
   if (!isValidCIDR(cidr.value)) {
     error.value = getErrorMessage('cidr')
-    toast.error(error.value, 'Ping Scanner')
+    toast.error(error.value, 'Escáner Ping')
     return
   }
 
@@ -120,14 +137,15 @@ const scanNetwork = async () => {
   error.value = ''
   results.value = []
   abortController = new AbortController()
+  startScan('ping', abortController)
 
   try {
-    const data = await scannerAPI.scanNetwork(cidr.value, abortController.signal, hostTimeout.value)
+    const data = await scannerAPI.scanNetwork(cidr.value, abortController.signal, hostTimeout.value, concurrency.value)
     results.value = data.results || data
     scanCompleted.value = true
     playNotificationSound() 
   } catch (err) {
-    if (err.name === 'CancelError' || err.code === 'ERR_CANCELED') {
+    if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
       error.value = err.response?.data?.detail || 'Error...'
     } else {
       error.value = err.response?.data?.detail || err.message || 'Error escaneando red'
@@ -141,8 +159,8 @@ const scanNetwork = async () => {
 
 const scanRange = async () => {
   if (!rangeStart.value.trim() || !rangeEnd.value.trim()) {
-    error.value = 'Please enter both start and end IPs'
-    toast.error('Por favor ingrese ambas IPs (inicial y final)', 'Ping Scanner')
+    error.value = 'Por favor ingresa IP de inicio y fin'
+    toast.error('Por favor ingrese ambas IPs (inicial y final)', 'Escáner Ping')
     return
   }
 
@@ -150,7 +168,7 @@ const scanRange = async () => {
   const validation = validateIPRange(rangeStart.value, rangeEnd.value)
   if (!validation.valid) {
     error.value = validation.message
-    toast.error(error.value, 'Ping Scanner')
+    toast.error(error.value, 'Escáner Ping')
     return
   }
 
@@ -159,13 +177,14 @@ const scanRange = async () => {
   error.value = ''
   results.value = []
   abortController = new AbortController()
+  startScan('ping', abortController)
 
   try {
     const startParts = rangeStart.value.split('.')
     const endParts = rangeEnd.value.split('.')
 
     if (startParts.length !== 4 || endParts.length !== 4) {
-      error.value = 'Invalid IP format'
+      error.value = 'Formato de IP inválido'
       loading.value = false
       return
     }
@@ -194,7 +213,7 @@ const scanRange = async () => {
     const allResults = []
     
     if (hostList.length > batchSize) {
-      toast.info(`Escaneando ${hostList.length} hosts${batchSize}...`, 'Ping Scanner')
+      toast.info(`Escaneando ${hostList.length} hosts${batchSize}...`, 'Escáner Ping')
       
       for (let i = 0; i < hostList.length; i += batchSize) {
         if (abortController?.signal.aborted) {
@@ -205,32 +224,32 @@ const scanRange = async () => {
         const batchNum = Math.floor(i / batchSize) + 1
         const totalBatches = Math.ceil(hostList.length / batchSize)
         
-        toast.info(`Procesando ${batchNum}/${totalBatches} (${batch.length} hosts)`, 'Ping Scanner')
+        toast.info(`Procesando ${batchNum}/${totalBatches} (${batch.length} hosts)`, 'Escáner Ping')
         
         try {
-          const data = await scannerAPI.pingHosts(batch, abortController.signal)
+          const data = await scannerAPI.pingHosts(batch, abortController.signal, hostTimeout.value, concurrency.value)
           const batchResults = data.results || data
           allResults.push(...batchResults)
           results.value = [...allResults] 
         } catch (batchErr) {
-          if (batchErr.name === 'CancelError' || batchErr.code === 'ERR_CANCELED') {
+          if (batchErr.name === 'CanceledError' || batchErr.code === 'ERR_CANCELED') {
             throw batchErr
           }
-          console.error(`Error en lote ${batchNum}:`, batchErr)
+          // batch error, continue with next
         }
       }
       
       results.value = allResults
     } else {
-      const data = await scannerAPI.pingHosts(hostList, abortController.signal)
+      const data = await scannerAPI.pingHosts(hostList, abortController.signal, hostTimeout.value, concurrency.value)
       results.value = data.results || data
     }
     
     scanCompleted.value = true
     playNotificationSound() 
-    toast.success(`Escaneo completado: ${results.value.filter(r => r.status === 'up').length} hosts activos de ${hostList.length}`, 'Ping Scanner')
+    toast.success(`Escaneo completado: ${results.value.filter(r => r.status === 'up').length} hosts activos de ${hostList.length}`, 'Escáner Ping')
   } catch (err) {
-    if (err.name === 'CancelError' || err.code === 'ERR_CANCELED') {
+    if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
       error.value = err.response?.data?.detail || 'Error...'
     } else {
       error.value = err.response?.data?.detail || err.message || 'Error escaneando rango'
@@ -257,10 +276,21 @@ const cancelScan = () => {
     abortController.abort()
   }
   cancelCurrentScan()
-  error.value = 'Scan cancelled'
+  error.value = 'Escaneo cancelado'
   loading.value = false
   endScan()
 }
+
+// Detectar cancelación externa (desde ActiveScanBanner u otro componente)
+watch(externalCancelFlag, (cancelled) => {
+  if (cancelled && isMyOwnScan.value && loading.value) {
+    if (abortController) abortController.abort()
+    cancelCurrentScan()
+    error.value = 'Escaneo cancelado'
+    loading.value = false
+    endScan()
+  }
+})
 
 const quickFillRange = (preset) => {
   const baseIP = '192.168.0'
@@ -278,10 +308,31 @@ const quickFillRange = (preset) => {
     rangeEnd.value = '192.168.7.254'
   }
 }
+
+const saveActiveResults = async () => {
+  if (!results.value.length) return
+  saving.value = true
+  try {
+    const activeResults = results.value.filter(r => r.status === 'up')
+    if (activeResults.length === 0) {
+      toast.warning('No hay hosts activos para guardar', 'Escáner Ping')
+      return
+    }
+    const data = await scannerAPI.savePingResults(activeResults)
+    toast.success(`Guardados: ${data.saved} nuevos, ${data.updated} actualizados (${data.total} total)`, 'Escáner Ping')
+  } catch (err) {
+    toast.error('Error al guardar resultados: ' + (err.message || 'desconocido'), 'Escáner Ping')
+  } finally {
+    saving.value = false
+  }
+}
 </script>
 
 <template>
   <div class="space-y-8">
+    <!-- Banner de escaneo activo de otro tipo -->
+    <ActiveScanBanner myScanType="ping" />
+
     <div 
       class="relative rounded-3xl p-8 shadow-2xl overflow-hidden"
       :class="isDark() ? 'bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-slate-700/50' : 'bg-gradient-to-br from-white via-slate-50 to-white border border-slate-200'"
@@ -387,33 +438,21 @@ const quickFillRange = (preset) => {
             :class="isDark() ? 'text-slate-500' : 'text-slate-600'"
           >
             <span class="inline-block w-2 h-2 bg-cyan-500 rounded-full"></span>
-            Solo direcciones IP válidas (IPv4 o IPv6)
+            Solo direcciones IP válidas
           </p>
 
           <!-- TIMEOUT CONFIG -->
           <div class="mt-4">
-            <label 
-              class="text-sm font-semibold mb-2 block"
-              :class="isDark() ? 'text-slate-300' : 'text-slate-700'"
-            >
-              Timeout por host (segundos)
-            </label>
-            <div class="flex items-center gap-4">
-              <input
-                v-model.number="hostTimeout"
-                type="number"
-                min="1"
-                max="30"
-                class="w-24 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500/60 font-mono"
-                :class="isDark() ? 'bg-slate-900/50 border border-slate-600 text-white' : 'bg-white border border-slate-300 text-slate-800'"
-              />
-              <span 
-                class="text-xs"
-                :class="isDark() ? 'text-slate-400' : 'text-slate-500'"
-              >
-                Recomendado: 2-5s para redes locales
-              </span>
-            </div>
+            <NumberStepper v-model="hostTimeout" :min="1" :max="30" unit="s"
+              label="Timeout por host" hint="Recomendado: 2-5s para redes locales"
+              accent-color="cyan" :show-range="true" />
+          </div>
+
+          <!-- CONCURRENCIA -->
+          <div class="mt-4">
+            <NumberStepper v-model="concurrency" :min="1" :max="100" unit="IPs"
+              label="IPs simultáneas" :presets="[10, 25, 50, 100]"
+              accent-color="cyan" :show-range="true" />
           </div>
         </div>
 
@@ -465,28 +504,16 @@ const quickFillRange = (preset) => {
           </div>
           
           <div class="mt-4">
-            <label 
-              class="text-sm font-semibold mb-2 block"
-              :class="isDark() ? 'text-slate-300' : 'text-slate-700'"
-            >
-              Timeout por host (segundos)
-            </label>
-            <div class="flex items-center gap-4">
-              <input
-                v-model.number="hostTimeout"
-                type="number"
-                min="1"
-                max="30"
-                class="w-24 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500/60 font-mono"
-                :class="isDark() ? 'bg-slate-900/50 border border-slate-600 text-white' : 'bg-white border border-slate-300 text-slate-800'"
-              />
-              <span 
-                class="text-xs"
-                :class="isDark() ? 'text-slate-400' : 'text-slate-500'"
-              >
-                Recomendado: 2-5s para redes locales
-              </span>
-            </div>
+            <NumberStepper v-model="hostTimeout" :min="1" :max="30" unit="s"
+              label="Timeout por host" hint="Recomendado: 2-5s para redes locales"
+              accent-color="cyan" :show-range="true" />
+          </div>
+
+          <!-- CONCURRENCIA -->
+          <div class="mt-4">
+            <NumberStepper v-model="concurrency" :min="1" :max="200" unit="IPs"
+              label="IPs simultáneas" :presets="[10, 25, 50, 100]"
+              accent-color="cyan" :show-range="true" />
           </div>
         </div>
 
@@ -609,19 +636,20 @@ const quickFillRange = (preset) => {
 
     <div class="space-y-3">
       <button
+        v-if="canExecuteScans"
         @click="handleScan"
-        :disabled="loading || isScanning"
+        :disabled="loading || otherScanActive"
         class="w-full group relative overflow-hidden py-6 rounded-2xl font-bold text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl"
         :class="loading 
           ? 'bg-slate-800 border-2 border-slate-600' 
           : 'bg-gradient-to-r from-cyan-600 via-blue-600 to-cyan-600 hover:from-cyan-500 hover:via-blue-500 hover:to-cyan-500 border-2 border-cyan-400/50 hover:border-cyan-300 shadow-cyan-500/20 hover:shadow-cyan-400/30'"
       >
-        <div v-if="!loading && !isScanning" class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+        <div v-if="!loading && !otherScanActive" class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
         
         <div class="relative z-10 flex items-center justify-center gap-3 text-white">
           <RefreshCw :class="['w-6 h-6', loading && 'animate-spin']" />
           <span class="tracking-wide">
-            {{ loading ? 'Escaneando Red...' : scanCompleted ? 'Escaneo Completo' : isScanning ? 'Otro escaneo en curso...' : 'Iniciar Escaneo Ping' }}
+            {{ loading ? 'Escaneando Red...' : scanCompleted ? 'Escaneo Completo' : otherScanActive ? 'Otro escaneo en curso...' : 'Iniciar Escaneo Ping' }}
           </span>
         </div>
       </button>
@@ -677,6 +705,62 @@ const quickFillRange = (preset) => {
       </div>
     </Transition>
 
+    <!-- FILTRO Y GUARDAR -->
+    <Transition name="fade-slide">
+      <div v-if="results.length" class="flex flex-wrap items-center gap-3">
+        <!-- Filtro -->
+        <div class="flex items-center gap-2 flex-1">
+          <span 
+            class="text-sm font-semibold"
+            :class="isDark() ? 'text-slate-400' : 'text-slate-600'"
+          >Filtro:</span>
+          <button
+            @click="filterMode = 'active'"
+            :class="[
+              'px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200',
+              filterMode === 'active'
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-md'
+                : isDark() 
+                  ? 'bg-slate-800/50 text-slate-400 border border-slate-700 hover:border-slate-600' 
+                  : 'bg-white text-slate-600 border border-slate-300 hover:border-slate-400'
+            ]"
+          >
+            Solo Activas
+          </button>
+          <button
+            @click="filterMode = 'all'"
+            :class="[
+              'px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200',
+              filterMode === 'all'
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 shadow-md'
+                : isDark() 
+                  ? 'bg-slate-800/50 text-slate-400 border border-slate-700 hover:border-slate-600' 
+                  : 'bg-white text-slate-600 border border-slate-300 hover:border-slate-400'
+            ]"
+          >
+            Activas e Inactivas
+          </button>
+        </div>
+        <!-- Guardar -->
+        <button
+          @click="saveActiveResults"
+          :disabled="saving || activos === 0"
+          class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="isDark() 
+            ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white border border-cyan-500/50 shadow-lg shadow-cyan-500/20' 
+            : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg'"
+        >
+          <svg v-if="!saving" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+          </svg>
+          <svg v-else class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span>{{ saving ? 'Guardando...' : `Guardar Activas (${activos})` }}</span>
+        </button>
+      </div>
+    </Transition>
+
     <!-- TABLA DE RESULTADOS  -->
     <Transition name="fade-slide">
       <div
@@ -700,7 +784,7 @@ const quickFillRange = (preset) => {
               <p 
                 class="text-sm"
                 :class="isDark() ? 'text-slate-400' : 'text-slate-600'"
-              >{{ results.length }} hosts escaneados</p>
+              >{{ filteredResults.length }} hosts {{ filterMode === 'active' ? 'activos ' : '' }}mostrados de {{ results.length }} escaneados</p>
             </div>
           </div>
         </div>
@@ -728,7 +812,7 @@ const quickFillRange = (preset) => {
             </thead>
             <tbody :class="isDark() ? 'divide-y divide-slate-800/50' : 'divide-y divide-slate-200'">
               <tr
-                v-for="(r, i) in results"
+                v-for="(r, i) in filteredResults"
                 :key="i"
                 class="transition-colors duration-200 stagger-item"
                 :class="isDark() ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'"

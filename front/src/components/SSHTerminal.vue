@@ -31,6 +31,37 @@
           Credenciales SSH
         </h4>
         
+        <!-- Saved credentials selector -->
+        <div v-if="savedCredentials.length > 0" class="space-y-2">
+          <label class="text-xs font-semibold block" :class="isDark() ? 'text-slate-400' : 'text-slate-600'">
+            <FolderOpen class="w-3.5 h-3.5 inline mr-1" />
+            Credenciales guardadas
+          </label>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="cred in savedCredentials"
+              :key="cred.id"
+              @click="applySavedCredential(cred.id)"
+              class="group flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border"
+              :class="[
+                selectedCredentialId === cred.id
+                  ? (isDark() ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' : 'bg-cyan-50 border-cyan-400 text-cyan-700')
+                  : (isDark() ? 'bg-slate-800/50 border-slate-600 text-slate-300 hover:border-cyan-500/40' : 'bg-white border-slate-300 text-slate-600 hover:border-cyan-400')
+              ]"
+            >
+              <Key class="w-3 h-3" />
+              {{ cred.name }}
+              <span class="opacity-50">({{ cred.username }})</span>
+              <span
+                @click.stop="deleteSavedCredential(cred.id)"
+                class="ml-1 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity"
+              >
+                <Trash2 class="w-3 h-3" />
+              </span>
+            </button>
+          </div>
+        </div>
+
         <div class="space-y-3">
           <div>
             <label 
@@ -58,6 +89,39 @@
               :class="isDark() ? 'bg-slate-900/50 border border-slate-600 text-white placeholder-slate-500' : 'bg-white border border-slate-300 text-slate-800 placeholder-slate-400'"
               placeholder="••••••••"
             />
+          </div>
+
+          <!-- Save credentials button -->
+          <div class="pt-1">
+            <button
+              v-if="!showSaveForm"
+              @click="showSaveForm = true"
+              :disabled="!credentials.username || !credentials.password"
+              class="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              :class="isDark() ? 'text-cyan-400 hover:bg-cyan-500/10 border border-cyan-500/30' : 'text-cyan-600 hover:bg-cyan-50 border border-cyan-300'"
+            >
+              <Save class="w-3.5 h-3.5" />
+              Guardar credenciales
+            </button>
+            <div v-else class="flex items-center gap-2">
+              <input
+                v-model="credentialName"
+                type="text"
+                placeholder="Nombre (ej: Lab SSH)"
+                class="flex-1 px-3 py-1.5 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-500/60 transition-all"
+                :class="isDark() ? 'bg-slate-900/50 border border-slate-600 text-white placeholder-slate-500' : 'bg-white border border-slate-300 text-slate-800 placeholder-slate-400'"
+                @keyup.enter="saveCurrentCredentials"
+              />
+              <button
+                @click="saveCurrentCredentials"
+                class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyan-500 text-white hover:bg-cyan-400 transition-all"
+              >Guardar</button>
+              <button
+                @click="showSaveForm = false; credentialName = ''"
+                class="px-2 py-1.5 text-xs rounded-lg transition-all"
+                :class="isDark() ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-500 hover:bg-slate-200'"
+              >Cancelar</button>
+            </div>
           </div>
         </div>
       </div>
@@ -241,8 +305,8 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue'
-import { Terminal, Key, Server, Users, Play, Loader2, TerminalSquare } from 'lucide-vue-next'
+import { ref, computed, nextTick, watch, onMounted } from 'vue'
+import { Terminal, Key, Server, Users, Play, Loader2, TerminalSquare, Save, FolderOpen, Trash2 } from 'lucide-vue-next'
 import { scannerAPI } from '../api/scanner'
 import { useToast } from '../composables/useToast'
 import { useGlobalWebSocket } from '../composables/useWebSocket'
@@ -255,6 +319,64 @@ const { isDark } = useTheme()
 const credentials = ref({
   username: '',
   password: ''
+})
+
+const savedCredentials = ref([])
+const selectedCredentialId = ref(null)
+const showSaveForm = ref(false)
+const credentialName = ref('')
+const loadingCredentials = ref(false)
+
+const loadSavedCredentials = async () => {
+  loadingCredentials.value = true
+  try {
+    savedCredentials.value = await scannerAPI.getSSHCredentials()
+  } catch { /* ignore */ } finally {
+    loadingCredentials.value = false
+  }
+}
+
+const applySavedCredential = async (id) => {
+  try {
+    const cred = await scannerAPI.getSSHCredential(id)
+    credentials.value.username = cred.username
+    credentials.value.password = cred.password
+    selectedCredentialId.value = id
+    toast.success(`Credenciales "${cred.name}" cargadas`)
+  } catch {
+    toast.error('Error cargando credencial')
+  }
+}
+
+const saveCurrentCredentials = async () => {
+  if (!credentialName.value.trim() || !credentials.value.username || !credentials.value.password) {
+    toast.error('Complete nombre, usuario y contraseña')
+    return
+  }
+  try {
+    await scannerAPI.createSSHCredential(credentialName.value.trim(), credentials.value.username, credentials.value.password)
+    toast.success('Credencial guardada')
+    credentialName.value = ''
+    showSaveForm.value = false
+    await loadSavedCredentials()
+  } catch {
+    toast.error('Error guardando credencial')
+  }
+}
+
+const deleteSavedCredential = async (id) => {
+  try {
+    await scannerAPI.deleteSSHCredential(id)
+    toast.success('Credencial eliminada')
+    if (selectedCredentialId.value === id) selectedCredentialId.value = null
+    await loadSavedCredentials()
+  } catch {
+    toast.error('Error eliminando credencial')
+  }
+}
+
+onMounted(() => {
+  loadSavedCredentials()
 })
 
 const targetInput = ref('')

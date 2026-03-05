@@ -1,21 +1,37 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { scannerAPI } from '../api/scanner'
-import { Monitor, RefreshCw, Info, Target, XCircle } from 'lucide-vue-next'
+import { Monitor, Info, Target, XCircle } from 'lucide-vue-next'
 import { useScanState } from '../composables/useScanState'
 import { useScanProgress } from '../composables/useScanProgress'
 import { useTheme } from '../composables/useTheme'
+import { usePermissions } from '../composables/usePermissions'
+import NumberStepper from './NumberStepper.vue'
+import OSIcon from './OSIcon.vue'
 
-const { isScanning, startScan, endScan } = useScanState()
+const { isScanning, currentScanType, startScan, endScan, externalCancelFlag } = useScanState()
+const isMyOwnScan = computed(() => currentScanType.value === 'os-detection')
 const { isDark } = useTheme()
+const { canExecuteScans } = usePermissions()
 const { scanProgress, setupProgressListener } = useScanProgress()
 
 const hosts = ref('') 
 const hostTimeout = ref(60)
+const concurrency = ref(50)
 const results = ref([])
 const loading = ref(false)
 const error = ref('')
 let abortController = null
+
+const activeResults = computed(() => {
+  if (!results.value || results.value.length === 0) return []
+  return results.value.filter(r => r.os)
+})
+
+const inactiveCount = computed(() => {
+  if (!results.value || results.value.length === 0) return 0
+  return results.value.filter(r => !r.os).length
+})
 
 onMounted(() => {
   setupProgressListener()
@@ -44,15 +60,15 @@ const detectOS = async () => {
   abortController = new AbortController()
 
   try {
-    const data = await scannerAPI.detectOSSegment(hostsArray, abortController.signal, hostTimeout.value)
+    const data = await scannerAPI.detectOSSegment(hostsArray, abortController.signal, hostTimeout.value, concurrency.value)
     results.value = data.results || data
     
     await new Promise(resolve => setTimeout(resolve, 200))
   } catch (err) {
-    if (err.name === 'CancelError' || err.code === 'ERR_CANCELED') {
+    if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
       error.value = 'Escaneo cancelado'
     } else {
-      error.value = err.response?.data?.detail || 'Error detecting OS'
+      error.value = err.response?.data?.detail || 'Error detectando SO'
     }
   } finally {
     loading.value = false
@@ -70,17 +86,17 @@ const cancelScan = () => {
   }
 }
 
-const getOSIcon = (osName) => {
-  if (!osName) return '💻'
-  const name = osName.toLowerCase()
-  if (name.includes('windows')) return '🪟'
-  if (name.includes('linux')) return '🐧'
-  if (name.includes('unix')) return '🖥️'
-  if (name.includes('mac') || name.includes('apple')) return '🍎'
-  if (name.includes('android')) return '🤖'
-  if (name.includes('ios')) return '📱'
-  return '💻'
-}
+// Detectar cancelación externa (desde ActiveScanBanner u otro componente)
+watch(externalCancelFlag, (cancelled) => {
+  if (cancelled && isMyOwnScan.value && loading.value) {
+    if (abortController) abortController.abort()
+    error.value = 'Escaneo cancelado'
+    loading.value = false
+    endScan()
+  }
+})
+
+
 </script>
 
 <template>
@@ -196,29 +212,33 @@ const getOSIcon = (osName) => {
           <label 
             class="text-sm font-semibold uppercase tracking-wide"
             :class="isDark() ? 'text-slate-300' : 'text-slate-700'"
-          >Timeout por host (segundos)</label>
+          >Timeout por host</label>
         </div>
-        <div class="flex items-center gap-4">
-          <input
-            v-model.number="hostTimeout"
-            type="number"
-            min="20"
-            max="300"
-            class="w-28 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/60 font-mono text-lg"
-            :class="isDark() ? 'bg-slate-900/50 border border-slate-600 text-white' : 'bg-white border border-slate-300 text-slate-800'"
-          />
-          <span 
-            class="text-sm"
-            :class="isDark() ? 'text-slate-400' : 'text-slate-500'"
-          >
-            Recomendado: 45-90s para detección de SO
-          </span>
+        <NumberStepper v-model="hostTimeout" :min="20" :max="300" :step="5" unit="s"
+          hint="Recomendado: 45-90s para detección de SO"
+          accent-color="teal" :show-range="true" />
+      </div>
+
+      <!-- Concurrencia -->
+      <div>
+        <div class="flex items-center gap-2 mb-3">
+          <svg class="w-5 h-5" :class="isDark() ? 'text-teal-400' : 'text-teal-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <label 
+            class="text-sm font-semibold uppercase tracking-wide"
+            :class="isDark() ? 'text-slate-300' : 'text-slate-700'"
+          >IPs simultáneas</label>
         </div>
+        <NumberStepper v-model="concurrency" :min="1" :max="50" unit="IPs"
+          :presets="[5, 10, 25, 50]"
+          accent-color="teal" :show-range="true" />
+        <p class="text-xs mt-1.5" :class="isDark() ? 'text-slate-500' : 'text-slate-400'">Más simultáneas = más rápido pero más carga de red</p>
       </div>
 
       <div class="flex gap-3">
         <button
-          v-if="!loading"
+          v-if="!loading && canExecuteScans"
           @click="detectOS"
           :disabled="isScanning"
           class="flex-1 group relative overflow-hidden py-6 rounded-2xl font-bold text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-600 hover:from-teal-500 hover:via-emerald-500 hover:to-teal-500 border-2 border-teal-400/50 hover:border-teal-300 shadow-teal-500/20 hover:shadow-teal-400/30"
@@ -244,7 +264,7 @@ const getOSIcon = (osName) => {
     <Transition name="fade-slide">
       <div v-if="error" class="bg-red-500/10 border-2 border-red-500/50 rounded-2xl p-5 flex items-start gap-3 shadow-lg shadow-red-500/20">
         <div class="w-10 h-10 bg-red-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
-          <span class="text-xl">⚠️</span>
+          <svg class="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </div>
         <div class="flex-1">
           <p class="font-semibold text-red-300 mb-1">Error en la Detección</p>
@@ -255,8 +275,25 @@ const getOSIcon = (osName) => {
 
     <Transition name="fade-slide">
       <div v-if="results && results.length > 0" class="space-y-6">
+        <!-- Resumen -->
         <div 
-          v-for="(result, index) in results" 
+          class="rounded-2xl p-5 shadow-xl"
+          :class="isDark() ? 'bg-gradient-to-br from-teal-900/20 to-emerald-900/20 border border-teal-500/30' : 'bg-gradient-to-br from-teal-50 to-emerald-50 border border-teal-300'"
+        >
+          <p :class="isDark() ? 'text-teal-300 font-semibold' : 'text-teal-700 font-semibold'">
+            {{ activeResults.length }} host(s) con SO detectado
+            <span v-if="inactiveCount > 0" :class="isDark() ? 'text-slate-400' : 'text-slate-500'"> · {{ inactiveCount }} host(s) sin detección</span>
+          </p>
+        </div>
+
+        <!-- Sin resultados activos -->
+        <div v-if="activeResults.length === 0" class="text-center py-12">
+          <XCircle class="w-12 h-12 mx-auto mb-3" :class="isDark() ? 'text-slate-600' : 'text-slate-400'" />
+          <p :class="isDark() ? 'text-slate-400' : 'text-slate-500'" class="font-semibold">No se detectó SO en ningún host escaneado</p>
+        </div>
+
+        <div 
+          v-for="(result, index) in activeResults" 
           :key="index"
           class="space-y-4 stagger-item-scale"
         >
@@ -274,45 +311,12 @@ const getOSIcon = (osName) => {
             </div>
           </div>
 
-          <div
-            v-if="!result.os"
-            class="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-2 border-slate-700 rounded-2xl p-8 shadow-xl"
-          >
-            <div class="flex items-start gap-4 mb-4">
-              <div class="w-12 h-12 bg-slate-800/50 rounded-xl flex items-center justify-center flex-shrink-0">
-                <XCircle class="w-7 h-7 text-slate-500" />
-              </div>
-              <div>
-                <p class="text-slate-300 font-bold text-lg mb-2">No se pudo detectar el sistema operativo</p>
-                <p class="text-sm text-slate-400 mb-3">Posibles causas:</p>
-              </div>
-            </div>
-            
-            <ul class="space-y-2 ml-16">
-              <li class="flex items-center gap-3 text-sm text-slate-400">
-                <span class="inline-block w-1.5 h-1.5 bg-slate-600 rounded-full"></span>
-                Se requieren privilegios de administrador/root
-            </li>
-            <li class="flex items-center gap-3 text-sm text-slate-400">
-              <span class="inline-block w-1.5 h-1.5 bg-slate-600 rounded-full"></span>
-              El firewall está bloqueando las sondas de detección
-            </li>
-            <li class="flex items-center gap-3 text-sm text-slate-400">
-              <span class="inline-block w-1.5 h-1.5 bg-slate-600 rounded-full"></span>
-              El host no responde al fingerprinting TCP/IP
-            </li>
-          </ul>
-        </div>
-
         <div
-          v-else
           class="bg-gradient-to-br from-teal-900/30 to-emerald-900/30 border-2 border-teal-500/40 rounded-3xl p-8 shadow-2xl shadow-teal-500/10"
         >
           <div class="flex items-center gap-8">
             <div class="w-24 h-24 bg-teal-500/10 rounded-3xl flex items-center justify-center border-2 border-teal-500/30 flex-shrink-0">
-              <div class="text-7xl">
-                {{ getOSIcon(result.os.name) }}
-              </div>
+              <OSIcon :name="result.os.name" :size="56" :stroke-width="1.5" />
             </div>
 
             <div class="flex-1 space-y-4">

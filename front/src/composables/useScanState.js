@@ -1,24 +1,75 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useGlobalWebSocket } from './useWebSocket'
 
-// Estado compartido a nivel de módulo (singleton)
 const isScanning = ref(false)
 const currentScanType = ref('')
+const currentAbortController = ref(null)
+const currentScanId = ref(null)
+
+
+const externalCancelFlag = ref(false)
+
+
+const scanTypeLabels = {
+  'ping': 'Ping Scan',
+  'port-scan': 'Port Scan',
+  'service-scan': 'Service Scan',
+  'full-scan-single': 'Full Scan (Individual)',
+  'full-scan-range': 'Full Scan (Rango)',
+}
 
 export function useScanState() {
-  const startScan = (scanType) => {
+  const ws = useGlobalWebSocket()
+
+  const scanDisplayName = computed(() => {
+    return scanTypeLabels[currentScanType.value] || currentScanType.value || ''
+  })
+
+  const startScan = (scanType, abortController = null) => {
     isScanning.value = true
     currentScanType.value = scanType
+    currentAbortController.value = abortController
+    externalCancelFlag.value = false
+  }
+
+  const setScanId = (scanId) => {
+    currentScanId.value = scanId
   }
 
   const endScan = () => {
     isScanning.value = false
     currentScanType.value = ''
+    currentAbortController.value = null
+    currentScanId.value = null
+    externalCancelFlag.value = false
+  }
+
+
+  const cancelActiveScan = () => {
+    if (currentScanId.value && ws.connected.value) {
+      ws.send(JSON.stringify({
+        type: 'cancel_scan',
+        scan_id: currentScanId.value
+      }))
+    }
+
+    if (currentAbortController.value) {
+      currentAbortController.value.abort()
+    }
+
+    externalCancelFlag.value = true
   }
 
   return {
     isScanning,
     currentScanType,
+    currentScanId,
+    scanDisplayName,
+    currentAbortController,
+    externalCancelFlag,
     startScan,
-    endScan
+    setScanId,
+    endScan,
+    cancelActiveScan
   }
 }

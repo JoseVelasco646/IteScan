@@ -1,8 +1,12 @@
 from cryptography.fernet import Fernet
 import os
+import sys
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class PasswordEncryption:
@@ -11,14 +15,18 @@ class PasswordEncryption:
         encryption_key = os.getenv("ENCRYPTION_KEY")
         
         if not encryption_key:
-            print("WARNING: ENCRYPTION_KEY no encontrada. Generando una nueva...")
-            encryption_key = Fernet.generate_key().decode()
-            print(f"Agrega a tu .env: ENCRYPTION_KEY={encryption_key}")
-        else:
-            if isinstance(encryption_key, str):
-                encryption_key = encryption_key.encode()
+            logger.critical(
+                "La variable de entorno ENCRYPTION_KEY no está definida. "
+                "Sin esta clave, las contraseñas cifradas serán irrecuperables tras un reinicio. "
+                'Genera una clave con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" '
+                "Y añádela al archivo .env o como variable de entorno."
+            )
+            sys.exit(1)
         
-        self.cipher = Fernet(encryption_key if isinstance(encryption_key, bytes) else encryption_key.encode())
+        if isinstance(encryption_key, str):
+            encryption_key = encryption_key.encode()
+        
+        self.cipher = Fernet(encryption_key)
     
     def encrypt(self, plaintext: str) -> str:
         if not plaintext:

@@ -7,10 +7,16 @@ import os
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://scanner:scanner123@192.168.0.6:5432/network_scanner"
+    "postgresql://scanner:scanner123@192.168.0.11:5432/network_scanner"
 )
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,
+    pool_recycle=3600
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -22,6 +28,7 @@ class Host(Base):
     id = Column(Integer, primary_key=True, index=True)
     ip = Column(INET, unique=True, nullable=False, index=True)
     hostname = Column(String(255))
+    nickname = Column(String(255))
     mac = Column(String(17))
     vendor = Column(String(255))
     os_name = Column(String(255))

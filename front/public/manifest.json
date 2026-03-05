@@ -1,7 +1,7 @@
 {
-  "name": "ITEScan - Escáner de Red Profesional",
+  "name": "ITEScan - Escáner de Red",
   "short_name": "ITEScan",
-  "description": "Herramienta profesional de escaneo de red para análisis de hosts, puertos, detección de SO y vulnerabilidades",
+  "description": "Herramienta de escaneo de red para análisis de hosts, puertos, detección de SO y vulnerabilidades",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#020408",
@@ -9,10 +9,22 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/vite.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

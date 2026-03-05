@@ -1,30 +1,24 @@
-import asyncio
 import paramiko
-from typing import Dict, Optional
 import threading
 import time
-from fastapi import WebSocket
+from typing import Dict, Optional
 
 
 class SSHSession:
-    
+
     def __init__(self, host: str, username: str, password: str, port: int = 22):
         self.host = host
         self.username = username
         self.password = password
         self.port = port
-        self.client = None
-        self.channel = None
+        self.client: Optional[paramiko.SSHClient] = None
+        self.channel: Optional[paramiko.Channel] = None
         self.connected = False
-        self.output_buffer = []
-        self.lock = threading.Lock()
-        
-    def connect(self) -> bool:
+
+    def connect(self, cols: int = 120, rows: int = 30) -> bool:
         try:
-            print(f"Attempting SSH connection to {self.host}:{self.port}")
             self.client = paramiko.SSHClient()
             self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            
             self.client.connect(
                 hostname=self.host,
                 port=self.port,
@@ -33,129 +27,114 @@ class SSHSession:
                 timeout=10,
                 banner_timeout=10,
                 look_for_keys=False,
-                allow_agent=False
+                allow_agent=False,
             )
-            
-            print(f"SSH connected, creating PTY...")
             self.channel = self.client.invoke_shell(
-                term='xterm-256color',
-                width=120,
-                height=30
+                term="xterm-256color",
+                width=cols,
+                height=rows,
             )
-            
             self.channel.setblocking(0)
-            
+            self.channel.settimeout(0.0)
             self.connected = True
-            print(f"PTY created successfully for {self.host}")
             return True
-            
-        except Exception as e:
-            print(f"Error connecting to {self.host}: {e}")
+        except Exception:
             self.connected = False
             return False
-    
-    def read_output(self, timeout: float = 0.1) -> str:
-        """Lee el output disponible del canal SSH"""
+
+    def read(self) -> bytes:
         if not self.channel or not self.connected:
-            return ""
-        
-        output = ""
+            return b""
+        chunks = []
         try:
-            time.sleep(timeout)
-            
-            max_reads = 20  
-            reads = 0
-            empty_reads = 0
-            
-            while reads < max_reads and empty_reads < 5:
-                if self.channel.recv_ready():
-                    data = self.channel.recv(4096)
-                    if data:
-                        decoded = data.decode('utf-8', errors='ignore')
-                        output += decoded
-                        print(f"Read {len(data)} bytes from SSH")
-                        reads += 1
-                        empty_reads = 0  
-                    else:
-                        empty_reads += 1
+            while self.channel.recv_ready():
+                chunk = self.channel.recv(16384)
+                if chunk:
+                    chunks.append(chunk)
                 else:
-                    empty_reads += 1
-                    if empty_reads >= 5:
-                        break
-                    time.sleep(0.02)  
-                
-            if self.channel.recv_stderr_ready():
-                data = self.channel.recv_stderr(4096)
-                if data:
-                    output += data.decode('utf-8', errors='ignore')
-                    print(f"Read {len(data)} bytes from SSH stderr")
-                
-        except Exception as e:
-            print(f"Error reading from {self.host}: {e}")
-            
-        return output
-    
-    def write_input(self, data: str):
+                    break
+            while self.channel.recv_stderr_ready():
+                chunk = self.channel.recv_stderr(16384)
+                if chunk:
+                    chunks.append(chunk)
+                else:
+                    break
+        except Exception:
+            pass
+        return b"".join(chunks)
+
+    def write(self, data: bytes) -> bool:
         if not self.channel or not self.connected:
-            print(f"Cannot write - channel not connected")
             return False
-        
         try:
-            print(f"Writing {len(data)} bytes to SSH: {data[:50]}")
-            self.channel.send(data)
+            self.channel.sendall(data)
             return True
-        except Exception as e:
-            print(f" Error writing to {self.host}: {e}")
+        except Exception:
+            self.connected = False
             return False
-    
-    def resize_pty(self, width: int, height: int):
+
+    def resize(self, cols: int, rows: int):
         if self.channel and self.connected:
             try:
-                self.channel.resize_pty(width=width, height=height)
-            except Exception as e:
-                print(f"Error resizing pty: {e}")
-    
+                self.channel.resize_pty(width=cols, height=rows)
+            except Exception:
+                pass
+
+    def is_alive(self) -> bool:
+        if not self.channel or not self.connected:
+            return False
+        if self.channel.closed or self.channel.exit_status_ready():
+            self.connected = False
+            return False
+        transport = self.client.get_transport() if self.client else None
+        if not transport or not transport.is_active():
+            self.connected = False
+            return False
+        return True
+
     def close(self):
         self.connected = False
         if self.channel:
             try:
                 self.channel.close()
-            except:
+            except Exception:
                 pass
         if self.client:
             try:
                 self.client.close()
-            except:
+            except Exception:
                 pass
 
 
 class SSHTerminalManager:
+
     def __init__(self):
         self.sessions: Dict[str, SSHSession] = {}
         self.lock = threading.Lock()
-    
-    def create_session(self, session_id: str, host: str, username: str, password: str, port: int = 22) -> bool:
+
+    def create_session(
+        self, session_id: str, host: str, username: str, password: str,
+        port: int = 22, cols: int = 120, rows: int = 30,
+    ) -> bool:
         with self.lock:
             if session_id in self.sessions:
                 self.sessions[session_id].close()
                 del self.sessions[session_id]
-            
             session = SSHSession(host, username, password, port)
-            if session.connect():
+            if session.connect(cols, rows):
                 self.sessions[session_id] = session
                 return True
             return False
-    
+
     def get_session(self, session_id: str) -> Optional[SSHSession]:
-        with self.lock:
-            return self.sessions.get(session_id)
-    
+        return self.sessions.get(session_id)
+
     def close_session(self, session_id: str):
         with self.lock:
-            if session_id in self.sessions:
-                self.sessions[session_id].close()
-                del self.sessions[session_id]
-    
+            session = self.sessions.pop(session_id, None)
+            if session:
+                session.close()
+
     def close_all(self):
         with self.lock:
             for session in self.sessions.values():

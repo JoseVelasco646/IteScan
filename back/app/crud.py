@@ -1,5 +1,5 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy.orm import Session, joinedload, subqueryload
+from sqlalchemy import and_, or_, cast, String, func, text
 from datetime import datetime
 from app.database import Host, Port, Service, Vulnerability, ConnectionHistory
 from typing import List, Optional
@@ -10,14 +10,19 @@ def get_ws_manager():
     from app.websocket_manager import ws_manager
     return ws_manager
 
+def clean_ip(ip_str: str) -> str:
+    if ip_str and '/' in str(ip_str):
+        return str(ip_str).split('/')[0]
+    return str(ip_str).strip() if ip_str else ip_str
+
 def create_or_update_host(db: Session, scan_data: dict):
-    """Crea o actualiza un host con todos sus datos"""
+    ip = clean_ip(scan_data["host"])
     
-    host = db.query(Host).filter(Host.ip == scan_data["host"]).first()
+    host = _find_host_by_ip(db, ip)
     is_new = host is None
 
     if not host:
-        host = Host(ip=scan_data["host"])
+        host = Host(ip=ip)
         db.add(host)
     
     host.hostname = scan_data.get("hostname")
@@ -43,8 +48,9 @@ def create_or_update_host(db: Session, scan_data: dict):
             "action": "created" if is_new else "updated",
             "host": {
                 "id": host.id,
-                "ip": host.ip,
+                "ip": clean_ip(host.ip),
                 "hostname": host.hostname,
+                "nickname": host.nickname,
                 "mac": host.mac,
                 "vendor": host.vendor,
                 "status": host.status,
@@ -140,64 +146,84 @@ def extract_severity(output: str) -> str:
 
 
 def get_all_hosts(db: Session, skip: int = 0, limit: int = 1000):
-    return db.query(Host).offset(skip).limit(limit).all()
+    return db.query(Host).options(
+        subqueryload(Host.ports),
+        subqueryload(Host.services),
+        subqueryload(Host.vulnerabilities)
+    ).offset(skip).limit(limit).all()
+
+
+def count_all_hosts(db: Session) -> int:
+    return db.query(Host).count()
+
+
+def _find_host_by_ip(db: Session, ip: str):
+    ip = clean_ip(ip)
+    host = db.query(Host).filter(
+        func.split_part(cast(Host.ip, String), '/', 1) == ip
+    ).first()
+    return host
 
 
 def get_host_by_ip(db: Session, ip: str):
-    return db.query(Host).filter(Host.ip == ip).first()
+    return _find_host_by_ip(db, ip)
 
 
 def filter_hosts_by_ip_range(db: Session, start_ip: str, end_ip: str):
     try:
-        start = int(ipaddress.IPv4Address(start_ip))
-        end = int(ipaddress.IPv4Address(end_ip))
-        
-        hosts = db.query(Host).all()
-        filtered = []
-        
-        for host in hosts:
-            try:
-                host_int = int(ipaddress.IPv4Address(host.ip))
-                if start <= host_int <= end:
-                    filtered.append(host)
-            except:
-                continue
-        
-        return filtered
-    except:
+        ipaddress.IPv4Address(start_ip)
+        ipaddress.IPv4Address(end_ip)
+        return db.query(Host).options(
+            joinedload(Host.ports),
+            joinedload(Host.services),
+            joinedload(Host.vulnerabilities)
+        ).filter(
+            cast(Host.ip, String).op('::inet') >= text(f"'{start_ip}'::inet"),
+            cast(Host.ip, String).op('::inet') <= text(f"'{end_ip}'::inet")
+        ).all()
+    except Exception:
         return []
 
 
 def filter_hosts_by_subnet(db: Session, subnet: str):
     try:
-        network = ipaddress.ip_network(subnet, strict=False)
-        hosts = db.query(Host).all()
-        
-        filtered = []
-        for host in hosts:
-            try:
-                if ipaddress.ip_address(host.ip) in network:
-                    filtered.append(host)
-            except:
-                continue
-        
-        return filtered
-    except:
+        ipaddress.ip_network(subnet, strict=False)
+        return db.query(Host).options(
+            joinedload(Host.ports),
+            joinedload(Host.services),
+            joinedload(Host.vulnerabilities)
+        ).filter(
+            text(f"ip::inet <<= '{subnet}'::inet")
+        ).all()
+    except Exception:
         return []
 
 
 def search_hosts(db: Session, query: str):
     return db.query(Host).filter(
         or_(
-            Host.ip.ilike(f"%{query}%"),
+            cast(Host.ip, String).ilike(f"%{query}%"),
             Host.hostname.ilike(f"%{query}%"),
+            Host.nickname.ilike(f"%{query}%"),
             Host.vendor.ilike(f"%{query}%")
         )
     ).all()
 
 
+def update_host_nickname(db: Session, ip: str, nickname: str):
+    ip = clean_ip(ip)
+    host = _find_host_by_ip(db, ip)
+    if host:
+        host.nickname = nickname if nickname and nickname.strip() else None
+        db.commit()
+        db.refresh(host)
+        return host
+    return None
+
+
 def delete_host(db: Session, ip: str):
-    host = db.query(Host).filter(Host.ip == ip).first()
+    ip = clean_ip(ip)
+    host = _find_host_by_ip(db, ip)
     if host:
         db.delete(host)
         db.commit()
@@ -218,7 +244,8 @@ def get_host_statistics(db: Session):
     }
 
 def mark_host_as_down(db: Session, ip: str):
-    host = db.query(Host).filter(Host.ip == ip).first()
+    ip = clean_ip(ip)
+    host = _find_host_by_ip(db, ip)
     if host:
         host.status = "down"
         host.last_seen = datetime.utcnow()
@@ -237,6 +264,9 @@ def mark_host_as_down(db: Session, ip: str):
 
 
 def mark_multiple_hosts_as_down(db: Session, ips: List[str]):
-    for ip in ips:
-        mark_host_as_down(db, ip)
+    clean_ips = [clean_ip(ip) for ip in ips]
+    # Bulk update in a single query
+    db.query(Host).filter(
+        func.split_part(cast(Host.ip, String), '/', 1).in_(clean_ips)
+    ).update({Host.status: "down", Host.last_seen: datetime.utcnow()}, synchronize_session='fetch')
     db.commit()

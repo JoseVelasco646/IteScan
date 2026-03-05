@@ -1,17 +1,22 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { scannerAPI } from '../api/scanner'
 import { Radio, RefreshCw, AlertCircle, Network, HardDrive, XCircle, X } from 'lucide-vue-next'
 import { useScanState } from '../composables/useScanState'
 import { useScanProgress } from '../composables/useScanProgress'
 import { useTheme } from '../composables/useTheme'
+import { usePermissions } from '../composables/usePermissions'
+import NumberStepper from './NumberStepper.vue'
 
-const { isScanning, startScan, endScan } = useScanState()
+const { isScanning, currentScanType, startScan, endScan, externalCancelFlag } = useScanState()
+const isMyOwnScan = computed(() => currentScanType.value === 'mac-scan')
 const { isDark } = useTheme()
+const { canExecuteScans } = usePermissions()
 const { scanProgress, setupProgressListener } = useScanProgress()
 
 const cidr = ref('192.168.0.1/24')
 const hostTimeout = ref(8)
+const concurrency = ref(30)
 const results = ref(null)
 const loading = ref(false)
 const error = ref('')
@@ -23,7 +28,7 @@ onMounted(() => {
 
 const scanMAC = async () => {
   if (!cidr.value.trim()) {
-    error.value = 'Please enter a CIDR network'
+    error.value = 'Por favor ingresa una red CIDR'
     return
   }
 
@@ -34,13 +39,13 @@ const scanMAC = async () => {
   abortController = new AbortController()
 
   try {
-    const data = await scannerAPI.scanMAC(cidr.value, abortController.signal, hostTimeout.value)
+    const data = await scannerAPI.scanMAC(cidr.value, abortController.signal, hostTimeout.value, concurrency.value)
     results.value = data.results || data
   } catch (err) {
-    if (err.name === 'CancelError' || err.code === 'ERR_CANCELED') {
+    if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
       error.value = 'Escaneo cancelado'
     } else {
-      error.value = err.response?.data?.detail || 'Error scanning MAC addresses'
+      error.value = err.response?.data?.detail || 'Error escaneando direcciones MAC'
     }
   } finally {
     abortController = null
@@ -58,6 +63,15 @@ const cancelScan = () => {
   }
 }
 
+// Detectar cancelación externa (desde ActiveScanBanner u otro componente)
+watch(externalCancelFlag, (cancelled) => {
+  if (cancelled && isMyOwnScan.value && loading.value) {
+    if (abortController) abortController.abort()
+    error.value = 'Escaneo cancelado'
+    loading.value = false
+    endScan()
+  }
+})
 const getVendorColor = (vendor) => {
   if (!vendor) return 'bg-gray-700 text-gray-400'
   return 'bg-blue-900/50 text-blue-300'
@@ -168,31 +182,20 @@ const getVendorColor = (vendor) => {
       </div>
 
       <div class="mt-4">
-        <label 
-          class="text-sm font-semibold mb-2 block"
-          :class="isDark() ? 'text-slate-300' : 'text-slate-700'"
-        >
-          Timeout por host (segundos)
-        </label>
-        <div class="flex items-center gap-4">
-          <input
-            v-model.number="hostTimeout"
-            type="number"
-            min="3"
-            max="20"
-            class="w-24 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/60 font-mono"
-            :class="isDark() ? 'bg-slate-900/50 border border-slate-600 text-white' : 'bg-white border border-slate-300 text-slate-800'"
-          />
-          <span 
-            class="text-xs"
-            :class="isDark() ? 'text-slate-400' : 'text-slate-500'"
-          >
-            Recomendado: 5-10s para detección MAC
-          </span>
-        </div>
+        <NumberStepper v-model="hostTimeout" :min="3" :max="20" unit="s"
+          label="Timeout por host" hint="Recomendado: 5-10s para detección MAC"
+          accent-color="amber" :show-range="true" />
+      </div>
+
+      <!-- Concurrencia -->
+      <div class="mt-4">
+        <NumberStepper v-model="concurrency" :min="1" :max="50" unit="IPs"
+          label="IPs simultáneas" :presets="[10, 20, 30, 50]"
+          accent-color="amber" :show-range="true" />
       </div>
 
       <button
+        v-if="canExecuteScans"
         @click="scanMAC"
         :disabled="loading || isScanning"
         class="w-full group relative overflow-hidden py-6 rounded-2xl font-bold text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl"
@@ -224,7 +227,7 @@ const getVendorColor = (vendor) => {
     <Transition name="fade-slide">
       <div v-if="error" class="bg-red-500/10 border-2 border-red-500/50 rounded-2xl p-5 flex items-start gap-3 shadow-lg shadow-red-500/20">
         <div class="w-10 h-10 bg-red-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
-          <span class="text-xl">⚠️</span>
+          <svg class="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </div>
         <div class="flex-1">
           <p class="font-semibold text-red-300 mb-1">Error en el Escaneo</p>
