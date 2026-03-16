@@ -465,7 +465,7 @@ async def full_scan_range_endpoint(data: FullScanRangeRequest, request: Request,
     }
 
 
-# save ping results
+
 
 @router.post("/ping/save")
 async def save_ping_results(data: SavePingResultsRequest, db: Session = Depends(get_db), _role=Depends(require_role("mod"))):
