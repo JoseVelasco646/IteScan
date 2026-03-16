@@ -31,6 +31,15 @@ const sshPass = ref('')
 const changingType = ref(false)
 const selectedType = ref(props.device.device_type)
 
+const runActionWithLoading = async (loadingRef, action) => {
+  loadingRef.value = true
+  try {
+    await action()
+  } finally {
+    loadingRef.value = false
+  }
+}
+
 onMounted(() => {
   fetchDeviceInfo()
 })
@@ -50,16 +59,15 @@ const fetchDeviceInfo = async () => {
 }
 
 const scanDevice = async () => {
-  scanningDevice.value = true
-  try {
-    const data = await scannerAPI.scanDevice(props.subnetId, props.device.id)
-    deviceInfo.value = data.data
-    toast.success('Escaneo completado')
-  } catch (e) {
-    toast.error('Error escaneando dispositivo')
-  } finally {
-    scanningDevice.value = false
-  }
+  await runActionWithLoading(scanningDevice, async () => {
+    try {
+      const data = await scannerAPI.scanDevice(props.subnetId, props.device.id)
+      deviceInfo.value = data.data
+      toast.success('Escaneo completado')
+    } catch (e) {
+      toast.error('Error escaneando dispositivo')
+    }
+  })
 }
 
 const shutdownDevice = async () => {
@@ -67,21 +75,20 @@ const shutdownDevice = async () => {
     toast.error('Ingrese credenciales SSH')
     return
   }
-  shuttingDown.value = true
-  try {
-    const result = await scannerAPI.shutdownDevice(props.subnetId, props.device.id, sshUser.value, sshPass.value)
-    if (result.success) {
-      toast.success(`${props.device.ip} apagado exitosamente`)
-      emit('updated', { ...props.device, status: 'red' })
-      showShutdownForm.value = false
-    } else {
-      toast.error(result.error || 'Error al apagar')
+  await runActionWithLoading(shuttingDown, async () => {
+    try {
+      const result = await scannerAPI.shutdownDevice(props.subnetId, props.device.id, sshUser.value, sshPass.value)
+      if (result.success) {
+        toast.success(`${props.device.ip} apagado exitosamente`)
+        emit('updated', { ...props.device, status: 'red' })
+        showShutdownForm.value = false
+      } else {
+        toast.error(result.error || 'Error al apagar')
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error al apagar')
     }
-  } catch (e) {
-    toast.error(e.response?.data?.detail || 'Error al apagar')
-  } finally {
-    shuttingDown.value = false
-  }
+  })
 }
 
 const saveLabel = async () => {
@@ -97,17 +104,16 @@ const saveLabel = async () => {
 }
 
 const changeDeviceType = async (type) => {
-  changingType.value = true
-  try {
-    const result = await scannerAPI.updateDeviceType(props.subnetId, props.device.id, type)
-    selectedType.value = type
-    emit('updated', result)
-    toast.success('Tipo de dispositivo actualizado')
-  } catch {
-    toast.error('Error actualizando tipo')
-  } finally {
-    changingType.value = false
-  }
+  await runActionWithLoading(changingType, async () => {
+    try {
+      const result = await scannerAPI.updateDeviceType(props.subnetId, props.device.id, type)
+      selectedType.value = type
+      emit('updated', result)
+      toast.success('Tipo de dispositivo actualizado')
+    } catch {
+      toast.error('Error actualizando tipo')
+    }
+  })
 }
 </script>
 

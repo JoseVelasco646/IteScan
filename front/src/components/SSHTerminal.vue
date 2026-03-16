@@ -97,8 +97,7 @@
               v-if="!showSaveForm"
               @click="showSaveForm = true"
               :disabled="!credentials.username || !credentials.password"
-              class="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              :class="isDark() ? 'text-cyan-400 hover:bg-cyan-500/10 border border-cyan-500/30' : 'text-cyan-600 hover:bg-cyan-50 border border-cyan-300'"
+              :class="[btnSecondaryClass, 'text-xs', 'px-3', 'py-1.5']"
             >
               <Save class="w-3.5 h-3.5" />
               Guardar credenciales
@@ -114,7 +113,7 @@
               />
               <button
                 @click="saveCurrentCredentials"
-                class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyan-500 text-white hover:bg-cyan-400 transition-all"
+                :class="[btnPrimaryClass, 'px-3', 'py-1.5', 'text-xs']"
               >Guardar</button>
               <button
                 @click="showSaveForm = false; credentialName = ''"
@@ -158,7 +157,7 @@
             <button
               v-if="selectedFromTable.length > 0"
               @click="useSelectedHosts"
-              class="btn btn-secondary text-sm py-1.5"
+              :class="[btnSecondaryClass, 'text-sm']"
             >
               <Users class="w-4 h-4" />
               Usar seleccionados ({{ selectedFromTable.length }})
@@ -193,7 +192,7 @@
         <button
           @click="executeCommand"
           :disabled="!canExecute || isExecuting"
-          class="btn btn-primary whitespace-nowrap"
+          :class="[btnPrimaryClass, 'whitespace-nowrap']"
         >
           <Play v-if="!isExecuting" class="w-5 h-5" />
           <Loader2 v-else class="w-5 h-5 animate-spin" />
@@ -311,41 +310,40 @@ import { scannerAPI } from '../api/scanner'
 import { useToast } from '../composables/useToast'
 import { useGlobalWebSocket } from '../composables/useWebSocket'
 import { useTheme } from '../composables/useTheme'
+import { useSSHCredentials } from '../composables/useSSHCredentials'
+import { useButtonClasses } from '../composables/useButtonClasses'
+import { parseHostsInput } from '../utils/networkHosts'
+import { SSH_QUICK_COMMANDS } from '../utils/sshTerminal'
 
 const toast = useToast()
 const ws = useGlobalWebSocket()
 const { isDark } = useTheme()
+const { btnPrimaryClass, btnSecondaryClass } = useButtonClasses()
 
 const credentials = ref({
   username: '',
   password: ''
 })
 
-const savedCredentials = ref([])
+const {
+  savedCredentials,
+  loadSavedCredentials,
+  applySavedCredential: applySavedCredentialFromStore,
+  saveCredential,
+  deleteCredential,
+} = useSSHCredentials(toast)
+
 const selectedCredentialId = ref(null)
 const showSaveForm = ref(false)
 const credentialName = ref('')
-const loadingCredentials = ref(false)
-
-const loadSavedCredentials = async () => {
-  loadingCredentials.value = true
-  try {
-    savedCredentials.value = await scannerAPI.getSSHCredentials()
-  } catch { /* ignore */ } finally {
-    loadingCredentials.value = false
-  }
-}
 
 const applySavedCredential = async (id) => {
-  try {
-    const cred = await scannerAPI.getSSHCredential(id)
-    credentials.value.username = cred.username
-    credentials.value.password = cred.password
-    selectedCredentialId.value = id
-    toast.success(`Credenciales "${cred.name}" cargadas`)
-  } catch {
-    toast.error('Error cargando credencial')
-  }
+  const credential = await applySavedCredentialFromStore(id)
+  if (!credential) return
+
+  credentials.value.username = credential.username
+  credentials.value.password = credential.password
+  selectedCredentialId.value = id
 }
 
 const saveCurrentCredentials = async () => {
@@ -353,26 +351,18 @@ const saveCurrentCredentials = async () => {
     toast.error('Complete nombre, usuario y contraseña')
     return
   }
-  try {
-    await scannerAPI.createSSHCredential(credentialName.value.trim(), credentials.value.username, credentials.value.password)
-    toast.success('Credencial guardada')
-    credentialName.value = ''
-    showSaveForm.value = false
-    await loadSavedCredentials()
-  } catch {
-    toast.error('Error guardando credencial')
-  }
+
+  const saved = await saveCredential(credentialName.value.trim(), credentials.value.username, credentials.value.password)
+  if (!saved) return
+
+  credentialName.value = ''
+  showSaveForm.value = false
 }
 
 const deleteSavedCredential = async (id) => {
-  try {
-    await scannerAPI.deleteSSHCredential(id)
-    toast.success('Credencial eliminada')
-    if (selectedCredentialId.value === id) selectedCredentialId.value = null
-    await loadSavedCredentials()
-  } catch {
-    toast.error('Error eliminando credencial')
-  }
+  const deleted = await deleteCredential(id)
+  if (!deleted) return
+  if (selectedCredentialId.value === id) selectedCredentialId.value = null
 }
 
 onMounted(() => {
@@ -390,47 +380,10 @@ const totalHosts = ref(0)
 const completedHosts = ref(0)
 const pendingHosts = ref(0)
 
-const quickCommands = [
-  { label: 'hostname', command: 'hostname' },
-  { label: 'uptime', command: 'uptime' },
-  { label: 'df -h', command: 'df -h' },
-  { label: 'free -m', command: 'free -m' },
-  { label: 'who', command: 'who' },
-  { label: 'ps aux', command: 'ps aux | head -20' },
-  { label: 'netstat', command: 'netstat -tuln | head -20' },
-  { label: 'ip addr', command: 'ip addr show' }
-]
+const quickCommands = SSH_QUICK_COMMANDS
 
 const parsedHosts = computed(() => {
-  if (!targetInput.value.trim()) return []
-  
-  const hosts = []
-  const parts = targetInput.value.split(',').map(p => p.trim())
-  
-  for (const part of parts) {
-    if (part.includes('-') && !part.includes('/')) {
-      // Range format: 192.168.0.10-192.168.0.50
-      const [start, end] = part.split('-').map(s => s.trim())
-      if (start && end) {
-        const startParts = start.split('.').map(Number)
-        const endParts = end.split('.').map(Number)
-        
-        if (startParts.length === 4 && endParts.length === 4) {
-          const startNum = startParts[3]
-          const endNum = endParts[3]
-          const base = startParts.slice(0, 3).join('.')
-          
-          for (let i = startNum; i <= endNum; i++) {
-            hosts.push(`${base}.${i}`)
-          }
-        }
-      }
-    } else if (part) {
-      hosts.push(part)
-    }
-  }
-  
-  return hosts
+  return parseHostsInput(targetInput.value)
 })
 
 const canExecute = computed(() => {

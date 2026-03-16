@@ -223,3 +223,22 @@ CREATE TABLE IF NOT EXISTS ssh_credentials (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ssh_credentials_name ON ssh_credentials(name);
+
+
+-- token_version para revocación de tokens
+DO $$ BEGIN
+    ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+
+-- Tabla de intentos de login para rate limiting persistente
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id SERIAL PRIMARY KEY,
+    ip_address VARCHAR(45) NOT NULL,
+    username VARCHAR(100),
+    attempted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_at ON login_attempts(attempted_at);

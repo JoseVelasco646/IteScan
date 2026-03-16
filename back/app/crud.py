@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session, joinedload, subqueryload
 from sqlalchemy import and_, or_, cast, String, func, text
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database import Host, Port, Service, Vulnerability, ConnectionHistory
 from typing import List, Optional
 import ipaddress
@@ -32,7 +32,7 @@ def create_or_update_host(db: Session, scan_data: dict):
         host.vendor = scan_data["vendor"]
     host.status = scan_data.get("status", "unknown")
     host.latency_ms = scan_data.get("latency_ms")
-    host.last_seen = datetime.utcnow()
+    host.last_seen = datetime.now(timezone.utc)
     
     os_info = scan_data.get("os")
     if os_info:
@@ -248,7 +248,7 @@ def mark_host_as_down(db: Session, ip: str):
     host = _find_host_by_ip(db, ip)
     if host:
         host.status = "down"
-        host.last_seen = datetime.utcnow()
+        host.last_seen = datetime.now(timezone.utc)
         
         # Guardar en historial
         history = ConnectionHistory(
@@ -268,5 +268,5 @@ def mark_multiple_hosts_as_down(db: Session, ips: List[str]):
     # Bulk update in a single query
     db.query(Host).filter(
         func.split_part(cast(Host.ip, String), '/', 1).in_(clean_ips)
-    ).update({Host.status: "down", Host.last_seen: datetime.utcnow()}, synchronize_session='fetch')
+    ).update({Host.status: "down", Host.last_seen: datetime.now(timezone.utc)}, synchronize_session='fetch')
     db.commit()

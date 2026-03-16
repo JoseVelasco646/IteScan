@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.database import get_db, create_tables
 from app.models import AdminUser
-from app.auth import decode_token, create_default_admin
+from app.auth import decode_token, create_default_admin, verify_token_version
 from app.websocket_manager import ws_manager
 from app.scheduler_service import scheduler_service
 from app.utils import logger
@@ -95,6 +95,12 @@ async def verify_auth(request: Request, call_next):
                     status_code=401,
                     content={"detail": "Usuario no válido o desactivado."},
                 )
+            # Verificar que el token no haya sido revocado
+            if not verify_token_version(payload, db):
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Token revocado. Inicia sesión nuevamente."},
+                )
             request.state.user_id = payload["user_id"]
         finally:
             db.close()
@@ -163,6 +169,24 @@ async def websocket_endpoint(websocket: WebSocket):
                             await websocket.send_text(
                                 json.dumps({"type": "scan_cancelled", "scan_id": scan_id})
                             )
+                            await ws_manager.broadcast(
+                                "scan_progress",
+                                {
+                                    "scan_id": scan_id,
+                                    "status": "cancelled",
+                                    "message": "Escaneo cancelado por el usuario",
+                                },
+                            )
+                    elif message.get("type") == "cancel_active_scans":
+                        cancelled_scan_ids = ws_manager.cancel_scans_for_user(user_id)
+                        await websocket.send_text(
+                            json.dumps({
+                                "type": "scan_cancelled",
+                                "scan_ids": cancelled_scan_ids,
+                                "cancelled_count": len(cancelled_scan_ids),
+                            })
+                        )
+                        for scan_id in cancelled_scan_ids:
                             await ws_manager.broadcast(
                                 "scan_progress",
                                 {

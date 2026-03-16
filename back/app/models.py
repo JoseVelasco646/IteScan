@@ -155,6 +155,7 @@ class AdminUser(Base):
     is_super_admin = Column(Boolean, default=False)  
     is_active = Column(Boolean, default=True)
     must_change_password = Column(Boolean, default=False)
+    token_version = Column(Integer, nullable=False, default=0, server_default='0')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -245,3 +246,12 @@ class SSHCredential(Base):
             self._password = encrypt_password(value)
         else:
             self._password = None
+
+
+class LoginAttempt(Base):
+    __tablename__ = "login_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ip_address = Column(String(45), nullable=False, index=True)
+    username = Column(String(100))
+    attempted_at = Column(DateTime(timezone=True), server_default=func.now())

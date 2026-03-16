@@ -6,13 +6,14 @@ from app.models import AdminUser
 from app.auth import (
     hash_password, verify_password, create_token, decode_token,
     get_current_user, check_rate_limit, record_failed_login,
-    clear_login_attempts, require_role, VALID_ROLES
+    clear_login_attempts, require_role, VALID_ROLES, verify_token_version
 )
 from app.schemas import (
     LoginRequest, ChangePasswordRequest,
     CreateAdminRequest, UpdateAdminRequest
 )
 from app.utils import audit_log, get_client_ip, logger
+from app.websocket_manager import ws_manager
 
 router = APIRouter()
 
@@ -26,7 +27,7 @@ async def login(data: LoginRequest, request: Request, db: Session = Depends(get_
         client_ip = forwarded.split(",")[0].strip()
 
     # Verificar rate limiting
-    if check_rate_limit(client_ip):
+    if check_rate_limit(client_ip, db):
         logger.warning(f"Login bloqueado por rate limit para IP: {client_ip}")
         raise HTTPException(
             status_code=429,
@@ -36,7 +37,7 @@ async def login(data: LoginRequest, request: Request, db: Session = Depends(get_
     user = db.query(AdminUser).filter(AdminUser.username == data.username).first()
 
     if not user or not verify_password(data.password, user.password_hash):
-        record_failed_login(client_ip)
+        record_failed_login(client_ip, data.username, db)
         logger.warning(f"Intento de login fallido para: {data.username} desde {client_ip}")
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
@@ -44,8 +45,8 @@ async def login(data: LoginRequest, request: Request, db: Session = Depends(get_
         raise HTTPException(status_code=403, detail="Cuenta desactivada")
 
     # Login exitoso - limpiar intentos
-    clear_login_attempts(client_ip)
-    token = create_token(user.id, user.username, user.role or "viewer")
+    clear_login_attempts(client_ip, db)
+    token = create_token(user.id, user.username, user.role or "viewer", user.token_version or 0)
     logger.info(f"Login exitoso: {user.username} (rol: {user.role}) desde {client_ip}")
 
     audit_log(db, request, "login", "auth", f"Inicio de sesión: {user.username}", {"user_id": user.id, "role": user.role})
@@ -75,7 +76,7 @@ async def check_auth(request: Request):
         db = next(get_db())
         try:
             user = db.query(AdminUser).filter(AdminUser.id == payload["user_id"]).first()
-            if user and user.is_active:
+            if user and user.is_active and verify_token_version(payload, db):
                 return {
                     "authenticated": True,
                     "user": {
@@ -121,7 +122,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Usuario no válido")
 
-    new_token = create_token(user.id, user.username, user.role or "viewer")
+    new_token = create_token(user.id, user.username, user.role or "viewer", user.token_version or 0)
     return {
         "token": new_token,
         "user": {
@@ -147,10 +148,12 @@ async def change_password(data: ChangePasswordRequest, request: Request, db: Ses
 
     user.password_hash = hash_password(data.new_password)
     user.must_change_password = False
+    # Incrementar token_version para invalidar todos los tokens anteriores
+    user.token_version = (user.token_version or 0) + 1
     db.commit()
 
-    # Generar nuevo token con la nueva contraseña
-    new_token = create_token(user.id, user.username, user.role or "viewer")
+    # Generar nuevo token con la nueva versión
+    new_token = create_token(user.id, user.username, user.role or "viewer", user.token_version)
 
     audit_log(db, request, "update", "auth", f"Contraseña cambiada para: {user.username}", {"target_user_id": user.id})
     logger.info(f"Contraseña cambiada para: {user.username}")
@@ -229,6 +232,9 @@ async def update_admin_user(user_id: int, data: UpdateAdminRequest, request: Req
 
     current_user = get_current_user(request)
     requesting_user = db.query(AdminUser).filter(AdminUser.id == current_user["user_id"]).first()
+    previous_role = user.role or "viewer"
+    role_changed = False
+    deactivated = False
 
     
     if user.is_super_admin and (not requesting_user or not requesting_user.is_super_admin):
@@ -247,18 +253,41 @@ async def update_admin_user(user_id: int, data: UpdateAdminRequest, request: Req
                 raise HTTPException(status_code=400, detail="Debe haber al menos un administrador activo")
 
         user.is_active = data.is_active
+        deactivated = data.is_active is False
 
     if data.new_password:
         user.password_hash = hash_password(data.new_password)
+        # Invalidar tokens anteriores del usuario
+        user.token_version = (user.token_version or 0) + 1
 
     if data.role is not None:
         if data.role not in VALID_ROLES:
             raise HTTPException(status_code=400, detail=f"Rol inválido. Roles válidos: {', '.join(VALID_ROLES)}")
         if user.id == current_user["user_id"] and data.role != "admin":
             raise HTTPException(status_code=400, detail="No puedes cambiar tu propio rol")
+        role_changed = (previous_role != data.role)
         user.role = data.role
 
     db.commit()
+
+    if role_changed:
+        await ws_manager.send_to_user(
+            user.id,
+            "auth_permissions_updated",
+            {
+                "user_id": user.id,
+                "role": user.role or "viewer"
+            }
+        )
+
+    if deactivated:
+        await ws_manager.send_to_user(
+            user.id,
+            "auth_force_logout",
+            {
+                "reason": "Tu cuenta fue desactivada por un administrador."
+            }
+        )
 
     changes = {}
     if data.display_name is not None:
@@ -297,9 +326,18 @@ async def delete_admin_user(user_id: int, request: Request, db: Session = Depend
         raise HTTPException(status_code=400, detail="Debe haber al menos un administrador")
 
     username = user.username
+    target_user_id = user.id
     audit_log(db, request, "delete", "admin", f"Admin '{username}' eliminado por '{current_user['username']}'", {"deleted_user_id": user_id, "deleted_username": username})
     db.delete(user)
     db.commit()
+
+    await ws_manager.send_to_user(
+        target_user_id,
+        "auth_force_logout",
+        {
+            "reason": "Tu cuenta fue eliminada por un administrador."
+        }
+    )
 
     logger.info(f"Admin '{username}' eliminado por '{current_user['username']}'")
     return {"message": f"Administrador '{username}' eliminado correctamente"}

@@ -1,17 +1,20 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { scannerAPI } from '../api/scanner'
 import { Radio, RefreshCw, AlertCircle, Network, HardDrive, XCircle, X } from 'lucide-vue-next'
 import { useScanState } from '../composables/useScanState'
+import { useScanCancellation } from '../composables/useScanCancellation'
 import { useScanProgress } from '../composables/useScanProgress'
 import { useTheme } from '../composables/useTheme'
 import { usePermissions } from '../composables/usePermissions'
+import { useButtonClasses } from '../composables/useButtonClasses'
 import NumberStepper from './NumberStepper.vue'
 
 const { isScanning, currentScanType, startScan, endScan, externalCancelFlag } = useScanState()
 const isMyOwnScan = computed(() => currentScanType.value === 'mac-scan')
 const { isDark } = useTheme()
 const { canExecuteScans } = usePermissions()
+const { btnCTAClass, btnDangerCTAClass } = useButtonClasses()
 const { scanProgress, setupProgressListener } = useScanProgress()
 
 const cidr = ref('192.168.0.1/24')
@@ -20,7 +23,17 @@ const concurrency = ref(30)
 const results = ref(null)
 const loading = ref(false)
 const error = ref('')
-let abortController = null
+const {
+  createAbortController,
+  finalizeScan,
+  cancelScan,
+} = useScanCancellation({
+  loading,
+  error,
+  endScan,
+  externalCancelFlag,
+  isMyOwnScan,
+})
 
 onMounted(() => {
   setupProgressListener()
@@ -33,13 +46,13 @@ const scanMAC = async () => {
   }
 
   loading.value = true
-  startScan('mac-scan')
   error.value = ''
   results.value = null
-  abortController = new AbortController()
+  const controller = createAbortController()
+  startScan('mac-scan', controller)
 
   try {
-    const data = await scannerAPI.scanMAC(cidr.value, abortController.signal, hostTimeout.value, concurrency.value)
+    const data = await scannerAPI.scanMAC(cidr.value, controller.signal, hostTimeout.value, concurrency.value)
     results.value = data.results || data
   } catch (err) {
     if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
@@ -48,30 +61,9 @@ const scanMAC = async () => {
       error.value = err.response?.data?.detail || 'Error escaneando direcciones MAC'
     }
   } finally {
-    abortController = null
-    loading.value = false
-    endScan()
+    finalizeScan()
   }
 }
-
-const cancelScan = () => {
-  if (abortController) {
-    abortController.abort()
-    error.value = 'Escaneo cancelado'
-    loading.value = false
-    endScan()
-  }
-}
-
-// Detectar cancelación externa (desde ActiveScanBanner u otro componente)
-watch(externalCancelFlag, (cancelled) => {
-  if (cancelled && isMyOwnScan.value && loading.value) {
-    if (abortController) abortController.abort()
-    error.value = 'Escaneo cancelado'
-    loading.value = false
-    endScan()
-  }
-})
 const getVendorColor = (vendor) => {
   if (!vendor) return 'bg-gray-700 text-gray-400'
   return 'bg-blue-900/50 text-blue-300'
@@ -198,29 +190,20 @@ const getVendorColor = (vendor) => {
         v-if="canExecuteScans"
         @click="scanMAC"
         :disabled="loading || isScanning"
-        class="w-full group relative overflow-hidden py-6 rounded-2xl font-bold text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl"
-        :class="loading 
-          ? 'bg-slate-800 border-2 border-slate-600' 
-          : 'bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-600 hover:from-amber-500 hover:via-yellow-500 hover:to-amber-500 border-2 border-amber-400/50 hover:border-amber-300 shadow-amber-500/20 hover:shadow-amber-400/30'"
+        :class="btnCTAClass"
       >
-        <div v-if="!loading && !isScanning" class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-        
-        <div class="relative z-10 flex items-center justify-center gap-3 text-white">
-          <RefreshCw :class="['w-6 h-6', loading && 'animate-spin']" />
-          <span class="tracking-wide">
-            {{ loading ? 'Escaneando Red...' : isScanning ? 'Otro escaneo en curso...' : 'Escanear Dispositivos' }}
-          </span>
-        </div>
+        <RefreshCw :class="['w-6 h-6', loading && 'animate-spin']" />
+        <span>
+          {{ loading ? 'Escaneando Red...' : isScanning ? 'Otro escaneo en curso...' : 'Escanear Dispositivos' }}
+        </span>
       </button>
 
       <button
         v-if="loading"
         @click="cancelScan"
-        class="w-full mt-3 group relative py-4 rounded-2xl font-bold text-lg transition-all duration-300 bg-red-900/50 hover:bg-red-800/60 border-2 border-red-700 hover:border-red-600 text-white shadow-lg"
+        :class="btnDangerCTAClass"
       >
-        <div class="relative z-10 flex items-center justify-center gap-3">
-          <span>Cancelar Escaneo</span>
-        </div>
+        <span>Cancelar Escaneo</span>
       </button>
     </div>
 

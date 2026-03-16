@@ -1,11 +1,14 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { scannerAPI } from '../api/scanner'
 import { Monitor, Info, Target, XCircle } from 'lucide-vue-next'
 import { useScanState } from '../composables/useScanState'
+import { useScanCancellation } from '../composables/useScanCancellation'
 import { useScanProgress } from '../composables/useScanProgress'
 import { useTheme } from '../composables/useTheme'
 import { usePermissions } from '../composables/usePermissions'
+import { useButtonClasses } from '../composables/useButtonClasses'
+import { parseHostsInput } from '../utils/networkHosts'
 import NumberStepper from './NumberStepper.vue'
 import OSIcon from './OSIcon.vue'
 
@@ -13,6 +16,7 @@ const { isScanning, currentScanType, startScan, endScan, externalCancelFlag } = 
 const isMyOwnScan = computed(() => currentScanType.value === 'os-detection')
 const { isDark } = useTheme()
 const { canExecuteScans } = usePermissions()
+const { btnCTAClass, btnDangerCTAClass } = useButtonClasses()
 const { scanProgress, setupProgressListener } = useScanProgress()
 
 const hosts = ref('') 
@@ -21,7 +25,17 @@ const concurrency = ref(50)
 const results = ref([])
 const loading = ref(false)
 const error = ref('')
-let abortController = null
+const {
+  createAbortController,
+  finalizeScan,
+  cancelScan,
+} = useScanCancellation({
+  loading,
+  error,
+  endScan,
+  externalCancelFlag,
+  isMyOwnScan,
+})
 
 const activeResults = computed(() => {
   if (!results.value || results.value.length === 0) return []
@@ -43,10 +57,7 @@ const detectOS = async () => {
     return
   }
 
-  const hostsArray = hosts.value
-    .split(',')
-    .map((h) => h.trim())
-    .filter(Boolean)
+  const hostsArray = parseHostsInput(hosts.value)
 
   if (hostsArray.length === 0) {
     error.value = 'Por favor ingrese al menos un host válido'
@@ -54,13 +65,13 @@ const detectOS = async () => {
   }
 
   loading.value = true
-  startScan('os-detection')
   error.value = ''
   results.value = []
-  abortController = new AbortController()
+  const controller = createAbortController()
+  startScan('os-detection', controller)
 
   try {
-    const data = await scannerAPI.detectOSSegment(hostsArray, abortController.signal, hostTimeout.value, concurrency.value)
+    const data = await scannerAPI.detectOSSegment(hostsArray, controller.signal, hostTimeout.value, concurrency.value)
     results.value = data.results || data
     
     await new Promise(resolve => setTimeout(resolve, 200))
@@ -71,30 +82,9 @@ const detectOS = async () => {
       error.value = err.response?.data?.detail || 'Error detectando SO'
     }
   } finally {
-    loading.value = false
-    endScan()
-    abortController = null
+    finalizeScan()
   }
 }
-
-const cancelScan = () => {
-  if (abortController) {
-    abortController.abort()
-    error.value = 'Escaneo cancelado'
-    loading.value = false
-    endScan()
-  }
-}
-
-// Detectar cancelación externa (desde ActiveScanBanner u otro componente)
-watch(externalCancelFlag, (cancelled) => {
-  if (cancelled && isMyOwnScan.value && loading.value) {
-    if (abortController) abortController.abort()
-    error.value = 'Escaneo cancelado'
-    loading.value = false
-    endScan()
-  }
-})
 
 
 </script>
@@ -241,22 +231,17 @@ watch(externalCancelFlag, (cancelled) => {
           v-if="!loading && canExecuteScans"
           @click="detectOS"
           :disabled="isScanning"
-          class="flex-1 group relative overflow-hidden py-6 rounded-2xl font-bold text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-600 hover:from-teal-500 hover:via-emerald-500 hover:to-teal-500 border-2 border-teal-400/50 hover:border-teal-300 shadow-teal-500/20 hover:shadow-teal-400/30"
+          :class="btnCTAClass"
         >
-          <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
-          <span class="relative flex items-center justify-center gap-3 text-white">
-            <Monitor class="w-6 h-6" />
-            Detectar OS
-          </span>
+          <Monitor class="w-6 h-6" />
+          Detectar OS
         </button>
         <button
           v-else
           @click="cancelScan"
-          class="flex-1 group relative overflow-hidden py-6 rounded-2xl font-bold text-lg transition-all duration-300 shadow-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 border-2 border-red-400/50 hover:border-red-300 shadow-red-500/20 hover:shadow-red-400/30"
+          :class="btnDangerCTAClass"
         >
-          <span class="relative flex items-center justify-center gap-3 text-white">
-            Cancelar
-          </span>
+          Cancelar
         </button>
       </div>
     </div>

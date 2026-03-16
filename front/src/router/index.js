@@ -86,7 +86,8 @@ router.beforeEach(async (to, from, next) => {
     // Verificar rol si la ruta lo requiere
     if (to.meta.requiresRole) {
       const ROLE_LEVELS = { admin: 4, mod: 3, op: 2, viewer: 1 }
-      const user = getUserFromToken(token) || JSON.parse(localStorage.getItem('admin_user') || '{}')
+      const syncedUser = JSON.parse(localStorage.getItem('admin_user') || '{}')
+      const user = syncedUser?.role ? syncedUser : (getUserFromToken(token) || {})
       const userLevel = ROLE_LEVELS[user.role] || 1
       const requiredLevel = ROLE_LEVELS[to.meta.requiresRole] || 1
       if (userLevel < requiredLevel) {

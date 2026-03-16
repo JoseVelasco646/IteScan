@@ -1,7 +1,7 @@
 import uuid
 import asyncio
 import time as _time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -481,14 +481,14 @@ async def save_ping_results(data: SavePingResultsRequest, db: Session = Depends(
                     ip=clean,
                     status="up",
                     latency_ms=r.get("latency_ms"),
-                    last_seen=datetime.utcnow()
+                    last_seen=datetime.now(timezone.utc)
                 )
                 db.add(host)
                 saved += 1
             else:
                 host.status = "up"
                 host.latency_ms = r.get("latency_ms")
-                host.last_seen = datetime.utcnow()
+                host.last_seen = datetime.now(timezone.utc)
                 updated += 1
     db.commit()
     return {"saved": saved, "updated": updated, "total": saved + updated}

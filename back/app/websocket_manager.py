@@ -39,6 +39,12 @@ class WebSocketManager:
     def cancel_scan(self, scan_id: str):
         self.cancelled_scans.add(scan_id)
 
+    def cancel_scans_for_user(self, user_id: int) -> list[str]:
+        scan_ids = [scan_id for scan_id, owner_id in self.scan_owners.items() if owner_id == user_id]
+        for scan_id in scan_ids:
+            self.cancelled_scans.add(scan_id)
+        return scan_ids
+
     def is_scan_cancelled(self, scan_id: str) -> bool:
         return scan_id in self.cancelled_scans
 

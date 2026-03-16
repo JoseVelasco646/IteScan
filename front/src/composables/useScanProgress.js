@@ -18,9 +18,22 @@ const scanProgress = ref({
 })
 
 let progressListener = null
+let cancelListener = null
 let hideTimeout = null
 let currentScanId = null
 let cancelledScanIds = new Set()
+let suppressProgressUntil = 0
+
+const markCancelledScans = (scanIds = []) => {
+  scanIds.filter(Boolean).forEach((scanId) => cancelledScanIds.add(scanId))
+}
+
+export const suppressProgressAfterCancellation = (scanIds = []) => {
+  markCancelledScans(scanIds)
+  suppressProgressUntil = Date.now() + 1500
+  scanProgress.value.active = false
+  scanProgress.value.status = 'cancelled'
+}
 
 export function useScanProgress() {
   const ws = useGlobalWebSocket()
@@ -28,6 +41,10 @@ export function useScanProgress() {
   const setupProgressListener = () => {
     if (!progressListener) {
       progressListener = ws.on('scan_progress', (data) => {
+        if (Date.now() < suppressProgressUntil) {
+          return
+        }
+
         // Ignorar mensajes de scans cancelados
         if (data.scan_id && cancelledScanIds.has(data.scan_id)) {
           return
@@ -74,22 +91,33 @@ export function useScanProgress() {
         }
       })
     }
+
+    if (!cancelListener) {
+      cancelListener = ws.on('scan_cancelled', (data) => {
+        const cancelledIds = []
+
+        if (data?.scan_id) {
+          cancelledIds.push(data.scan_id)
+        }
+
+        if (Array.isArray(data?.scan_ids)) {
+          cancelledIds.push(...data.scan_ids)
+        }
+
+        suppressProgressAfterCancellation(cancelledIds)
+      })
+    }
   }
 
   const cancelCurrentScan = () => {
     if (currentScanId && ws.connected.value) {
-      // Marcar como cancelado localmente
-      cancelledScanIds.add(currentScanId)
+      suppressProgressAfterCancellation([currentScanId])
       
       // Enviar mensaje de cancelación al backend
       ws.send({
         type: 'cancel_scan',
         scan_id: currentScanId
       })
-      
-      // Ocultar la barra de progreso inmediatamente
-      scanProgress.value.active = false
-      scanProgress.value.status = 'cancelled'
     }
   }
 

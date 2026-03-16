@@ -30,6 +30,7 @@ services:
       - ./back/.env
     environment:
       - DATABASE_URL=postgresql://scanner:scanner123@localhost:5432/network_scanner
+      - JWT_SECRET=742db74ff92e1032461cf12d2a641be1317b1acb90f2e0684cdfe13146ea4825
     volumes:
       - ./back/app:/app/app
       - ./back/.env:/app/.env:ro

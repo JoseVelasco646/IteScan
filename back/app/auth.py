@@ -1,50 +1,89 @@
 import os
+import logging
 import jwt
 import bcrypt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import Request, HTTPException, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
 
+_logger = logging.getLogger("app")
 
 _jwt_secret_env = os.getenv("JWT_SECRET")
 if not _jwt_secret_env:
     import secrets
     _jwt_secret_env = secrets.token_hex(32)
-   
+
     _env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+    _written = False
     try:
         with open(_env_path, 'a', encoding='utf-8') as f:
             f.write(f"\nJWT_SECRET={_jwt_secret_env}\n")
+        _written = True
     except Exception:
-        pass  
+        pass
+
+    if _written:
+        _logger.warning(
+            "JWT_SECRET no estaba definido. Se generó uno nuevo y se guardó en .env. "
+            "Configúralo como variable de entorno para evitar invalidar tokens al reiniciar."
+        )
+    else:
+        _logger.critical(
+            "JWT_SECRET no está definido y no se pudo escribir en .env. "
+            "Todos los tokens se invalidarán al reiniciar el servidor. "
+            "Define JWT_SECRET como variable de entorno."
+        )
 
 JWT_SECRET = _jwt_secret_env
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
 
 
-LOGIN_ATTEMPTS = {}  
 MAX_LOGIN_ATTEMPTS = 5
-LOGIN_LOCKOUT_SECONDS = 300  
+LOGIN_LOCKOUT_SECONDS = 300
 
-def check_rate_limit(client_ip: str) -> bool:
-    import time
-    now = time.time()
-    attempts = LOGIN_ATTEMPTS.get(client_ip, [])
-    # Limpiar intentos viejos
-    attempts = [a for a in attempts if now - a < LOGIN_LOCKOUT_SECONDS]
-    LOGIN_ATTEMPTS[client_ip] = attempts
-    return len(attempts) >= MAX_LOGIN_ATTEMPTS
 
-def record_failed_login(client_ip: str):
-    import time
-    if client_ip not in LOGIN_ATTEMPTS:
-        LOGIN_ATTEMPTS[client_ip] = []
-    LOGIN_ATTEMPTS[client_ip].append(time.time())
+def check_rate_limit(client_ip: str, db: Session = None) -> bool:
+    if db is None:
+        db = next(get_db())
+    from app.models import LoginAttempt
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=LOGIN_LOCKOUT_SECONDS)
+    count = db.query(LoginAttempt).filter(
+        LoginAttempt.ip_address == client_ip,
+        LoginAttempt.attempted_at >= cutoff
+    ).count()
+    return count >= MAX_LOGIN_ATTEMPTS
 
-def clear_login_attempts(client_ip: str):
-    LOGIN_ATTEMPTS.pop(client_ip, None)
+
+def record_failed_login(client_ip: str, username: str = None, db: Session = None):
+    if db is None:
+        db = next(get_db())
+    from app.models import LoginAttempt
+    attempt = LoginAttempt(ip_address=client_ip, username=username)
+    db.add(attempt)
+    db.commit()
+
+
+def clear_login_attempts(client_ip: str, db: Session = None):
+    if db is None:
+        db = next(get_db())
+    from app.models import LoginAttempt
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=LOGIN_LOCKOUT_SECONDS)
+    db.query(LoginAttempt).filter(
+        LoginAttempt.ip_address == client_ip,
+        LoginAttempt.attempted_at >= cutoff
+    ).delete(synchronize_session='fetch')
+    db.commit()
+
+
+def cleanup_old_login_attempts(db: Session):
+    from app.models import LoginAttempt
+    cutoff = datetime.now(timezone.utc) - timedelta(days=1)
+    db.query(LoginAttempt).filter(
+        LoginAttempt.attempted_at < cutoff
+    ).delete(synchronize_session='fetch')
+    db.commit()
 
 
 def hash_password(password: str) -> str:
@@ -56,13 +95,14 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
-def create_token(user_id: int, username: str, role: str = "viewer") -> str:
+def create_token(user_id: int, username: str, role: str = "viewer", token_version: int = 0) -> str:
     payload = {
         "user_id": user_id,
         "username": username,
         "role": role,
-        "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS),
-        "iat": datetime.utcnow()
+        "token_version": token_version,
+        "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS),
+        "iat": datetime.now(timezone.utc)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -75,6 +115,16 @@ def decode_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Token expirado")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Token inválido")
+
+
+def verify_token_version(payload: dict, db: Session) -> bool:
+    from app.models import AdminUser
+    user = db.query(AdminUser).filter(AdminUser.id == payload.get("user_id")).first()
+    if not user:
+        return False
+    # Tokens sin token_version (legacy) se consideran inválidos
+    token_ver = payload.get("token_version", -1)
+    return token_ver == (user.token_version or 0)
 
 
 def get_token_from_request(request: Request) -> str:
@@ -101,7 +151,8 @@ def create_default_admin(db: Session):
             display_name="Administrador",
             role="admin",
             is_super_admin=True,
-            must_change_password=True
+            must_change_password=True,
+            token_version=0
         )
         db.add(default_user)
         db.commit()
@@ -131,12 +182,18 @@ def get_user_role(request: Request) -> str:
 
 def require_role(minimum_role: str):
     min_level = ROLE_HIERARCHY.get(minimum_role, 0)
-    
-    def checker(request: Request):
+
+    def checker(request: Request, db: Session = Depends(get_db)):
         user_data = get_current_user(request)
-        user_role = user_data.get("role", "viewer")
+        from app.models import AdminUser
+
+        user = db.query(AdminUser).filter(AdminUser.id == user_data.get("user_id")).first()
+        if not user or not user.is_active:
+            raise HTTPException(status_code=401, detail="Usuario no válido o desactivado")
+
+        user_role = user.role or "viewer"
         user_level = ROLE_HIERARCHY.get(user_role, 0)
-        
+
         if user_level < min_level:
             raise HTTPException(
                 status_code=403,

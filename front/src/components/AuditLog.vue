@@ -3,8 +3,21 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { ScrollText, Filter, RefreshCw, ChevronLeft, ChevronRight, User, Shield, Server, Calendar, Terminal, LogIn, Trash2, Pencil, Plus, Scan, ToggleLeft, Play, Download } from 'lucide-vue-next'
 import { scannerAPI } from '../api/scanner.js'
 import { useTheme } from '../composables/useTheme'
+import { useButtonClasses } from '../composables/useButtonClasses'
+import { formatDateTime, formatRelativeTime } from '../utils/dateTime'
+import {
+  AUDIT_CATEGORIES,
+  AUDIT_ACTIONS,
+  getAuditCategoryIcon,
+  getAuditActionIcon,
+  getAuditActionLabel,
+  getAuditCategoryLabel,
+  getAuditCategoryColor,
+  getAuditActionBadgeColor,
+} from '../utils/auditLogUtils'
 
 const { isDark } = useTheme()
+const { btnPrimaryClass, btnSecondaryClass, getPaginationButtonClass } = useButtonClasses()
 
 const logs = ref([])
 const total = ref(0)
@@ -21,24 +34,8 @@ const filterDateFrom = ref('')
 const filterDateTo = ref('')
 const showFilters = ref(false)
 
-const categories = [
-  { value: '', label: 'Todas' },
-  { value: 'scan', label: 'Escaneos' },
-  { value: 'scheduler', label: 'Scheduler' },
-  { value: 'admin', label: 'Administración' },
-  { value: 'host', label: 'Hosts' },
-  { value: 'ssh', label: 'SSH' },
-  { value: 'auth', label: 'Autenticación' },
-]
-
-const actions = [
-  { value: '', label: 'Todas' },
-  { value: 'scan', label: 'Escaneo' },
-  { value: 'create', label: 'Crear' },
-  { value: 'update', label: 'Modificar' },
-  { value: 'delete', label: 'Eliminar' },
-  { value: 'login', label: 'Login' },
-]
+const categories = AUDIT_CATEGORIES
+const actions = AUDIT_ACTIONS
 
 const totalPages = computed(() => Math.ceil(total.value / limit))
 const skip = computed(() => (page.value - 1) * limit)
@@ -104,101 +101,31 @@ function nextPage() {
 }
 
 function getCategoryIcon(category) {
-  const map = {
-    scan: Scan,
-    scheduler: Calendar,
-    admin: Shield,
-    host: Server,
-    ssh: Terminal,
-    auth: LogIn,
-  }
-  return map[category] || ScrollText
+  return getAuditCategoryIcon(category)
 }
 
 function getCategoryColor(category) {
-  const dark = isDark()
-  const map = {
-    scan: dark ? 'text-cyan-400 bg-cyan-500/10' : 'text-cyan-600 bg-cyan-100',
-    scheduler: dark ? 'text-purple-400 bg-purple-500/10' : 'text-purple-600 bg-purple-100',
-    admin: dark ? 'text-amber-400 bg-amber-500/10' : 'text-amber-600 bg-amber-100',
-    host: dark ? 'text-green-400 bg-green-500/10' : 'text-green-600 bg-green-100',
-    ssh: dark ? 'text-orange-400 bg-orange-500/10' : 'text-orange-600 bg-orange-100',
-    auth: dark ? 'text-blue-400 bg-blue-500/10' : 'text-blue-600 bg-blue-100',
-  }
-  return map[category] || (dark ? 'text-slate-400 bg-slate-500/10' : 'text-slate-600 bg-slate-100')
+  return getAuditCategoryColor(category, isDark())
 }
 
 function getActionIcon(action) {
-  const map = {
-    scan: Scan,
-    create: Plus,
-    update: Pencil,
-    delete: Trash2,
-    login: LogIn,
-    logout: LogIn,
-  }
-  return map[action] || ScrollText
+  return getAuditActionIcon(action)
 }
 
 function getActionBadgeColor(action) {
-  const dark = isDark()
-  const map = {
-    scan: dark ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' : 'bg-cyan-100 text-cyan-700 border-cyan-300',
-    create: dark ? 'bg-green-500/20 text-green-300 border-green-500/30' : 'bg-green-100 text-green-700 border-green-300',
-    update: dark ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-amber-100 text-amber-700 border-amber-300',
-    delete: dark ? 'bg-red-500/20 text-red-300 border-red-500/30' : 'bg-red-100 text-red-700 border-red-300',
-    login: dark ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-blue-100 text-blue-700 border-blue-300',
-    logout: dark ? 'bg-slate-500/20 text-slate-300 border-slate-500/30' : 'bg-slate-100 text-slate-700 border-slate-300',
-  }
-  return map[action] || (dark ? 'bg-slate-500/20 text-slate-300 border-slate-500/30' : 'bg-slate-100 text-slate-700 border-slate-300')
+  return getAuditActionBadgeColor(action, isDark())
 }
 
 function getActionLabel(action) {
-  const map = {
-    scan: 'Escaneo',
-    create: 'Crear',
-    update: 'Modificar',
-    delete: 'Eliminar',
-    login: 'Login',
-    logout: 'Logout',
-  }
-  return map[action] || action
+  return getAuditActionLabel(action)
 }
 
 function getCategoryLabel(category) {
-  const map = {
-    scan: 'Escaneo',
-    scheduler: 'Scheduler',
-    admin: 'Admin',
-    host: 'Host',
-    ssh: 'SSH',
-    auth: 'Auth',
-  }
-  return map[category] || category
+  return getAuditCategoryLabel(category)
 }
 
 function formatDate(isoString) {
-  if (!isoString) return '-'
-  const d = new Date(isoString)
-  return d.toLocaleString('es-MX', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-}
-
-function formatRelativeTime(isoString) {
-  if (!isoString) return ''
-  const now = new Date()
-  const d = new Date(isoString)
-  const diff = Math.floor((now - d) / 1000)
-  if (diff < 60) return 'hace unos segundos'
-  if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`
-  if (diff < 86400) return `hace ${Math.floor(diff / 3600)}h`
-  return `hace ${Math.floor(diff / 86400)}d`
+  return formatDateTime(isoString, { locale: 'es-MX', fallback: '-', withSeconds: true })
 }
 
 async function exportCSV() {
@@ -266,22 +193,17 @@ onMounted(() => {
       <div class="flex items-center gap-2">
         <button
           @click="exportCSV"
-          class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 border"
-          :class="isDark() 
-            ? 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/60 border-slate-700/50' 
-            : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200 shadow-sm'"
+          :class="btnSecondaryClass"
         >
           <Download class="w-4 h-4" />
           <span class="hidden sm:inline">Exportar</span>
         </button>
         <button
           @click="showFilters = !showFilters"
-          class="relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 border"
-          :class="[
-            showFilters 
-              ? (isDark() ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' : 'bg-cyan-50 text-cyan-700 border-cyan-300')
-              : (isDark() ? 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/60 border-slate-700/50' : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200 shadow-sm')
-          ]"
+          class="relative inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-sm font-semibold transition-all duration-200 border"
+          :class="showFilters
+            ? (isDark() ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' : 'bg-cyan-50 text-cyan-700 border-cyan-300')
+            : (isDark() ? 'bg-slate-800 text-slate-200 border-slate-600 hover:bg-slate-700' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50')"
         >
           <Filter class="w-4 h-4" />
           <span class="hidden sm:inline">Filtros</span>
@@ -295,10 +217,7 @@ onMounted(() => {
         <button
           @click="fetchLogs(); fetchStats()"
           :disabled="loading"
-          class="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 border"
-          :class="isDark() 
-            ? 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/60 border-slate-700/50' 
-            : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200 shadow-sm'"
+          :class="btnSecondaryClass"
         >
           <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
         </button>
@@ -425,17 +344,13 @@ onMounted(() => {
           <div class="flex gap-2">
             <button
               @click="clearFilters"
-              class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              :class="isDark() ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'"
+              :class="btnSecondaryClass"
             >
               Limpiar todo
             </button>
             <button
               @click="applyFilters"
-              class="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-              :class="isDark() 
-                ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30' 
-                : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'"
+              :class="btnPrimaryClass"
             >
               Aplicar filtros
             </button>
@@ -551,10 +466,9 @@ onMounted(() => {
         <button
           @click="prevPage"
           :disabled="page <= 1"
-          class="p-2 rounded-lg transition-all duration-200 disabled:opacity-30 border"
-          :class="isDark() ? 'hover:bg-slate-700 border-transparent' : 'hover:bg-slate-100 border-transparent'"
+          :class="getPaginationButtonClass(page <= 1)"
         >
-          <ChevronLeft class="w-5 h-5" :class="isDark() ? 'text-slate-400' : 'text-slate-600'" />
+          <ChevronLeft class="w-4 h-4" />
         </button>
         <div class="flex items-center gap-0.5">
           <button v-for="p in Math.min(totalPages, 5)" :key="p"
@@ -570,10 +484,9 @@ onMounted(() => {
         <button
           @click="nextPage"
           :disabled="page >= totalPages"
-          class="p-2 rounded-lg transition-all duration-200 disabled:opacity-30 border"
-          :class="isDark() ? 'hover:bg-slate-700 border-transparent' : 'hover:bg-slate-100 border-transparent'"
+          :class="getPaginationButtonClass(page >= totalPages)"
         >
-          <ChevronRight class="w-5 h-5" :class="isDark() ? 'text-slate-400' : 'text-slate-600'" />
+          <ChevronRight class="w-4 h-4" />
         </button>
       </div>
     </div>

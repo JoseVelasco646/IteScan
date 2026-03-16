@@ -168,3 +168,19 @@ export function useGlobalWebSocket() {
   
   return globalWS
 }
+
+export function reconnectGlobalWebSocket() {
+  if (!globalWS) {
+    globalWS = useWebSocket()
+  }
+
+  globalWS.disconnect()
+  globalWS.connect()
+
+  return globalWS
+}
+
+export function disconnectGlobalWebSocket() {
+  if (!globalWS) return
+  globalWS.disconnect()
+}

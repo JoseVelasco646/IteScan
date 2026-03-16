@@ -3,48 +3,36 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { scannerAPI } from '../api/scanner'
 import { useToast } from '../composables/useToast'
 import { useGlobalWebSocket } from '../composables/useWebSocket'
-import ExcelJS from 'exceljs'
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { exportHostsToExcel, exportHostsToPNG, exportHostsToPDF } from '../utils/hostExportUtils'
 import {
   RotateCcw,
-  Eye,
   Trash2,
-  Apple,
   Monitor,
   Globe,
   Network,
-  GitBranch,
-  Search,
   Power,
-  Wifi,
   Server,
   Tag,
   Activity,
-  Clock,
   Settings,
   X,
   Info,
   Shield,
-  Users,
-  WifiOff,
-  HelpCircle,
-  ArrowUp,
-  ArrowDown,
-  ChevronsUpDown,
   Pencil,
-  Check,
 } from 'lucide-vue-next'
-import SkeletonLoader from './SkeletonLoader.vue'
+import HostsStatsCards from './HostsStatsCards.vue'
+import HostsFiltersPanel from './HostsFiltersPanel.vue'
+import HostsDataTable from './HostsDataTable.vue'
 import OSIcon from './OSIcon.vue'
 import { useTheme } from '../composables/useTheme'
 import { usePermissions } from '../composables/usePermissions'
+import { useButtonClasses } from '../composables/useButtonClasses'
 
 const toast = useToast()
 const ws = useGlobalWebSocket()
 const { isDark } = useTheme()
 const { canEditResources, canDeleteResources, canUseSSH } = usePermissions()
+const { btnDangerClass } = useButtonClasses()
 
 const hosts = ref([])
 const loading = ref(false)
@@ -99,7 +87,6 @@ const resultModalData = ref({
   type: 'success' 
 })
 
-const tableRef = ref(null)
 const wsCleanup = []
 
 onMounted(() => {
@@ -390,266 +377,33 @@ const exportToCSV = async () => {
 
 const exportToExcel = async () => {
   const hostsToExport = selectedHosts.value.length > 0 ? selectedHosts.value : filteredHosts.value
-  
-  const workbook = new ExcelJS.Workbook()
-  const worksheet = workbook.addWorksheet('Escaneo de Red')
 
-  worksheet.columns = [
-    { header: 'IP', key: 'ip', width: 15 },
-    { header: 'Nombre de host', key: 'hostname', width: 20 },
-    { header: 'Apodo', key: 'nickname', width: 20 },
-    { header: 'MAC', key: 'mac', width: 18 },
-    { header: 'Fabricante', key: 'vendor', width: 20 },
-    { header: 'SO', key: 'os', width: 15 },
-    { header: 'Estado', key: 'status', width: 10 },
-    { header: 'Latencia (ms)', key: 'latency', width: 12 },
-    { header: 'Última vez visto', key: 'lastSeen', width: 20 },
-    { header: 'Puertos', key: 'ports', width: 30 },
-    { header: 'Servicios', key: 'services', width: 30 },
-  ]
-
-  hostsToExport.forEach((host) => {
-    worksheet.addRow({
-      ip: host.ip,
-      hostname: host.hostname || 'N/A',
-      nickname: host.nickname || '',
-      mac: host.mac || 'N/A',
-      vendor: host.vendor || 'N/A',
-      os: host.os_name || 'N/A',
-      status: host.status,
-      latency: host.latency_ms || 'N/A',
-      lastSeen: host.last_seen ? new Date(host.last_seen).toLocaleString() : 'N/A',
-      ports: host.ports.map((p) => `${p.port}/${p.protocol}`).join(', '),
-      services: host.services.map((s) => s.service).join(', '),
-    })
-  })
-
-  worksheet.getRow(1).font = { bold: true }
-  worksheet.getRow(1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FF4CAF50' },
+  try {
+    await exportHostsToExcel(hostsToExport)
+    toast.success('Exportado a Excel exitosamente')
+  } catch (err) {
+    toast.error('Error exportando a Excel')
   }
-
-  const buffer = await workbook.xlsx.writeBuffer()
-  const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  })
-  const url = window.URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `network_scan_${Date.now()}.xlsx`
-  document.body.appendChild(a)
-  a.click()
-  window.URL.revokeObjectURL(url)
-  document.body.removeChild(a)
-  toast.success('Exportado a Excel exitosamente')
 }
 
 const exportToPDF = async () => {
   const hostsToExport = selectedHosts.value.length > 0 ? selectedHosts.value : filteredHosts.value
-  
-  const pdf = new jsPDF('l', 'mm', 'a4')
-  
-  pdf.setFontSize(20)
-  pdf.setTextColor(34, 211, 238) 
-  pdf.setFont(undefined, 'bold')
-  pdf.text('Reporte de Escaneo de Red', 14, 15)
-  
-  pdf.setDrawColor(34, 211, 238)
-  pdf.setLineWidth(0.5)
-  pdf.line(14, 18, 280, 18)
-  
-  pdf.setFontSize(10)
-  pdf.setTextColor(100)
-  pdf.setFont(undefined, 'normal')
-  pdf.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 25)
-  pdf.text(`Hora: ${new Date().toLocaleTimeString()}`, 14, 30)
-  pdf.text(`Total de Hosts: ${hostsToExport.length}`, 100, 25)
-  pdf.text(`Hosts Activos: ${hostsToExport.filter(h => h.status === 'up').length}`, 100, 30)
-  
-  const tableData = hostsToExport.map(host => [
-    host.ip,
-    host.hostname || 'N/A',
-    host.nickname || '',
-    host.mac || 'N/A',
-    host.vendor || 'N/A',
-    host.os_name || 'N/A',
-    host.status.toUpperCase(),
-    (host.ports?.length || 0).toString(),
-    host.last_seen ? new Date(host.last_seen).toLocaleDateString() : 'N/A'
-  ])
-  
-  autoTable(pdf, {
-    startY: 38,
-    head: [['Dirección IP', 'Nombre de host', 'Apodo', 'Dirección MAC', 'Fabricante', 'SO', 'Estado', 'Puertos', 'Última vez visto']],
-    body: tableData,
-    theme: 'striped',
-    headStyles: {
-      fillColor: [34, 211, 238], 
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      fontSize: 10,
-      halign: 'center',
-      cellPadding: 4
-    },
-    bodyStyles: {
-      fontSize: 9,
-      cellPadding: 3,
-      textColor: [50, 50, 50]
-    },
-    alternateRowStyles: {
-      fillColor: [245, 250, 252]
-    },
-    columnStyles: {
-      0: { cellWidth: 28, fontStyle: 'bold', textColor: [34, 211, 238] }, // IP
-      1: { cellWidth: 30 }, // Hostname
-      2: { cellWidth: 28 }, // Apodo
-      3: { cellWidth: 30, font: 'courier' }, // MAC
-      4: { cellWidth: 30 }, // Vendor
-      5: { cellWidth: 25 }, // OS
-      6: { 
-        cellWidth: 18,
-        halign: 'center',
-        fontStyle: 'bold'
-      }, // Status
-      7: { cellWidth: 16, halign: 'center' }, // Ports
-      8: { cellWidth: 25 } // Last Seen
-    },
-    didParseCell: function(data) {
-      if (data.column.index === 6 && data.section === 'body') {
-        if (data.cell.raw === 'UP') {
-          data.cell.styles.textColor = [34, 197, 94] 
-          data.cell.styles.fillColor = [220, 252, 231]
-        } else {
-          data.cell.styles.textColor = [239, 68, 68] 
-          data.cell.styles.fillColor = [254, 226, 226]
-        }
-      }
-    },
-    margin: { top: 38, left: 14, right: 14 },
-    didDrawPage: function(data) {
-      const pageCount = pdf.internal.getNumberOfPages()
-      const pageSize = pdf.internal.pageSize
-      const pageHeight = pageSize.height || pageSize.getHeight()
-      
-      pdf.setFontSize(8)
-      pdf.setTextColor(150)
-      pdf.text(
-        `Página ${data.pageNumber} de ${pageCount}`,
-        pageSize.width / 2,
-        pageHeight - 10,
-        { align: 'center' }
-      )
-      
-      pdf.text(
-        `Generado con Escáner de Red`,
-        14,
-        pageHeight - 10
-      )
-    }
-  })
-  
-  pdf.save(`network_scan_${Date.now()}.pdf`)
-  toast.success('Exportado a PDF exitosamente')
+
+  try {
+    await exportHostsToPDF(hostsToExport)
+    toast.success('Exportado a PDF exitosamente')
+  } catch (err) {
+    toast.error('Error exportando a PDF')
+  }
 }
 
 const exportToPNG = async () => {
   const hostsToExport = selectedHosts.value.length > 0 ? selectedHosts.value : filteredHosts.value
-  
-  const container = document.createElement('div')
-  container.style.position = 'absolute'
-  container.style.left = '-9999px'
-  container.style.width = '1200px'
-  container.style.padding = '40px'
-  container.style.backgroundColor = '#0f172a'
-  container.style.fontFamily = 'Arial, sans-serif'
-  
-  const header = document.createElement('div')
-  header.style.marginBottom = '30px'
-  header.innerHTML = `
-    <h1 style="color: #67e8f9; font-size: 32px; margin: 0 0 10px 0;">Network Scanner Report</h1>
-    <p style="color: #94a3b8; font-size: 14px; margin: 0;">Generated: ${new Date().toLocaleString()}</p>
-    <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">Total Hosts: ${hostsToExport.length}</p>
-  `
-  container.appendChild(header)
-  
-  const table = document.createElement('table')
-  table.style.width = '100%'
-  table.style.borderCollapse = 'collapse'
-  table.style.fontSize = '12px'
-  
-  const thead = document.createElement('thead')
-  thead.innerHTML = `
-    <tr style="background: #1e293b;">
-      <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">IP Address</th>
-      <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">Hostname</th>
-      <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">Apodo</th>
-      <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">MAC</th>
-      <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">Vendor</th>
-      <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">OS</th>
-      <th style="padding: 12px; text-align: center; color: #67e8f9; border: 1px solid #475569;">Status</th>
-      <th style="padding: 12px; text-align: center; color: #67e8f9; border: 1px solid #475569;">Ports</th>
-      <th style="padding: 12px; text-align: left; color: #67e8f9; border: 1px solid #475569;">Last Seen</th>
-    </tr>
-  `
-  table.appendChild(thead)
-  
-  const tbody = document.createElement('tbody')
-  hostsToExport.forEach((host, index) => {
-    const row = document.createElement('tr')
-    row.style.background = index % 2 === 0 ? '#0f172a' : '#1e293b'
-    
-    const statusColor = host.status === 'up' ? '#22c55e' : '#ef4444'
-    const statusText = host.status.toUpperCase()
-    
-    row.innerHTML = `
-      <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${host.ip}</td>
-      <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${host.hostname || 'N/A'}</td>
-      <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${host.nickname || ''}</td>
-      <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${host.mac || 'N/A'}</td>
-      <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${host.vendor || 'N/A'}</td>
-      <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${host.os_name || 'N/A'}</td>
-      <td style="padding: 10px; text-align: center; border: 1px solid #475569;">
-        <span style="display: inline-block; padding: 4px 12px; background: ${statusColor}; color: white; border-radius: 4px; font-weight: bold;">${statusText}</span>
-      </td>
-      <td style="padding: 10px; color: #e2e8f0; text-align: center; border: 1px solid #475569;">${host.ports?.length || 0}</td>
-      <td style="padding: 10px; color: #e2e8f0; border: 1px solid #475569;">${new Date(host.last_seen).toLocaleString()}</td>
-    `
-    tbody.appendChild(row)
-  })
-  table.appendChild(tbody)
-  container.appendChild(table)
-  
-  const footer = document.createElement('div')
-  footer.style.marginTop = '30px'
-  footer.style.textAlign = 'center'
-  footer.innerHTML = `<p style="color: #94a3b8; font-size: 12px; margin: 0;">Network Scanner Dashboard - Professional Report</p>`
-  container.appendChild(footer)
-  
-  document.body.appendChild(container)
-  
+
   try {
-    const canvas = await html2canvas(container, {
-      scale: 2,
-      backgroundColor: '#0f172a',
-      logging: false,
-      width: 1200,
-      windowWidth: 1200
-    })
-    
-    canvas.toBlob((blob) => {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `network_scan_${Date.now()}.png`
-      a.click()
-      URL.revokeObjectURL(url)
-      document.body.removeChild(container)
-      toast.success('Exportado a PNG exitosamente')
-    })
+    await exportHostsToPNG(hostsToExport)
+    toast.success('Exportado a PNG exitosamente')
   } catch (err) {
-    document.body.removeChild(container)
     toast.error('Error exportando a PNG')
   }
 }
@@ -855,12 +609,34 @@ const setFilter = (type) => {
     loadHosts()
   }
 }
-const baseBtn =
-  'relative flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold tracking-wide transition-all duration-300'
 
-const activeBtn = 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/40 ring-1 ring-cyan-400/50'
+const updateFilterStartIp = (value) => {
+  filterStartIp.value = value
+}
 
-const inactiveBtn = 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white'
+const updateFilterEndIp = (value) => {
+  filterEndIp.value = value
+}
+
+const updateFilterSubnet = (value) => {
+  filterSubnet.value = value
+}
+
+const updateSearchQuery = (value) => {
+  searchQuery.value = value
+}
+
+const updateFilterStartDate = (value) => {
+  filterStartDate.value = value
+}
+
+const updateFilterEndDate = (value) => {
+  filterEndDate.value = value
+}
+
+const updateNicknameInput = (value) => {
+  nicknameInput.value = value
+}
 
 const formatLocal = (iso) => {
   if (!iso) return ''
@@ -893,374 +669,33 @@ const formatLocal = (iso) => {
       Host <span class="text-cyan-400">Database</span>
     </h2>
 
-    <SkeletonLoader v-if="loading && hosts.length === 0" type="stats" class="mb-6" />
+    <HostsStatsCards
+      :loading="loading"
+      :hosts-length="hosts.length"
+      :statistics="statistics"
+    />
 
-    <div v-else-if="statistics" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-      <div
-        class="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50 shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 group"
-      >
-        <div class="flex items-center justify-between mb-3">
-          <div class="p-3 bg-gradient-to-br from-cyan-500/20 to-blue-600/20 rounded-xl border border-cyan-500/30">
-            <Users class="w-6 h-6 text-cyan-400" />
-          </div>
-          <div class="text-right">
-            <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Total Hosts</p>
-          </div>
-        </div>
-        <p class="text-5xl font-extrabold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">{{ statistics.total }}</p>
-        <div class="mt-3 h-1 bg-slate-700/50 rounded-full overflow-hidden">
-          <div class="h-full bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full" style="width: 100%"></div>
-        </div>
-      </div>
-
-      <div
-        class="bg-gradient-to-br from-green-900/20 to-emerald-900/20 backdrop-blur-sm rounded-2xl p-6 border border-green-700/50 shadow-xl hover:shadow-2xl hover:shadow-green-500/20 hover:scale-105 transition-all duration-300 group"
-      >
-        <div class="flex items-center justify-between mb-3">
-          <div class="p-3 bg-gradient-to-br from-green-500/20 to-emerald-600/20 rounded-xl border border-green-500/30">
-            <Wifi class="w-6 h-6 text-green-400" />
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="relative flex h-3 w-3">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-            </span>
-            <p class="text-green-300 text-xs uppercase tracking-wider font-semibold">Online</p>
-          </div>
-        </div>
-        <p class="text-5xl font-extrabold bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">{{ statistics.online }}</p>
-        <div class="mt-3 h-1 bg-slate-700/50 rounded-full overflow-hidden">
-          <div class="h-full bg-gradient-to-r from-green-500 to-emerald-600 rounded-full transition-all duration-500" :style="`width: ${statistics.total > 0 ? (statistics.online / statistics.total * 100) : 0}%`"></div>
-        </div>
-      </div>
-
-      <div
-        class="bg-gradient-to-br from-red-900/20 to-orange-900/20 backdrop-blur-sm rounded-2xl p-6 border border-red-700/50 shadow-xl hover:shadow-2xl hover:shadow-red-500/20 hover:scale-105 transition-all duration-300 group"
-      >
-        <div class="flex items-center justify-between mb-3">
-          <div class="p-3 bg-gradient-to-br from-red-500/20 to-orange-600/20 rounded-xl border border-red-500/30">
-            <WifiOff class="w-6 h-6 text-red-400" />
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="relative flex h-3 w-3">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-            </span>
-            <p class="text-red-300 text-xs uppercase tracking-wider font-semibold">Offline</p>
-          </div>
-        </div>
-        <p class="text-5xl font-extrabold bg-gradient-to-r from-red-400 to-orange-500 bg-clip-text text-transparent">{{ statistics.offline }}</p>
-        <div class="mt-3 h-1 bg-slate-700/50 rounded-full overflow-hidden">
-          <div class="h-full bg-gradient-to-r from-red-500 to-orange-600 rounded-full transition-all duration-500" :style="`width: ${statistics.total > 0 ? (statistics.offline / statistics.total * 100) : 0}%`"></div>
-        </div>
-      </div>
-
-      <div
-        class="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm rounded-2xl p-6 border border-slate-600/50 shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 group"
-      >
-        <div class="flex items-center justify-between mb-3">
-          <div class="p-3 bg-gradient-to-br from-slate-500/20 to-slate-600/20 rounded-xl border border-slate-500/30">
-            <HelpCircle class="w-6 h-6 text-slate-400" />
-          </div>
-          <div class="text-right">
-            <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Desconocidos</p>
-          </div>
-        </div>
-        <p class="text-5xl font-extrabold text-slate-200">{{ statistics.unknown }}</p>
-        <div class="mt-3 h-1 bg-slate-700/50 rounded-full overflow-hidden">
-          <div class="h-full bg-gradient-to-r from-slate-500 to-slate-600 rounded-full transition-all duration-500" :style="`width: ${statistics.total > 0 ? (statistics.unknown / statistics.total * 100) : 0}%`"></div>
-        </div>
-      </div>
-    </div>
-
-    <div 
-      class="border rounded-3xl p-8 mb-6 shadow-2xl"
-      :class="isDark() 
-        ? 'bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-slate-700/50' 
-        : 'bg-gradient-to-br from-white via-slate-50 to-white border-slate-200'"
-    >
-      <div class="flex items-center gap-3 mb-6">
-        <div 
-          class="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
-          :class="isDark() ? 'bg-gradient-to-br from-cyan-500 to-blue-600 shadow-cyan-500/30' : 'bg-gradient-to-br from-cyan-400 to-blue-500 shadow-cyan-400/30'"
-        >
-          <Search class="w-5 h-5 text-white" />
-        </div>
-        <h3 
-          class="text-2xl font-bold"
-          :class="isDark() ? 'text-white' : 'text-slate-800'"
-        >Filtros y Búsqueda</h3>
-      </div>
-
-      <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <button
-          @click="setFilter('all'); loadHosts()"
-          :class="[
-            'group relative px-4 py-3 rounded-xl font-semibold transition-all duration-300 overflow-hidden',
-            filterType === 'all'
-              ? isDark() 
-                ? 'bg-slate-700 border-2 border-slate-500 text-white shadow-lg'
-                : 'bg-cyan-100 border-2 border-cyan-400 text-cyan-700 shadow-md'
-              : isDark()
-                ? 'bg-slate-900/50 border border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-slate-800/50'
-                : 'bg-white border border-slate-300 text-slate-600 hover:border-cyan-300 hover:bg-slate-50'
-          ]"
-        >
-          <div class="relative z-10 flex items-center justify-center gap-2">
-            <Globe class="w-5 h-5" />
-            <span>Todos</span>
-          </div>
-        </button>
-
-        <button
-          @click="setFilter('range')"
-          :class="[
-            'group relative px-4 py-3 rounded-xl font-semibold transition-all duration-300 overflow-hidden',
-            filterType === 'range'
-              ? isDark() 
-                ? 'bg-slate-700 border-2 border-slate-500 text-white shadow-lg'
-                : 'bg-cyan-100 border-2 border-cyan-400 text-cyan-700 shadow-md'
-              : isDark()
-                ? 'bg-slate-900/50 border border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-slate-800/50'
-                : 'bg-white border border-slate-300 text-slate-600 hover:border-cyan-300 hover:bg-slate-50'
-          ]"
-        >
-          <div class="relative z-10 flex items-center justify-center gap-2">
-            <Network class="w-5 h-5" />
-            <span>Rango IP</span>
-          </div>
-        </button>
-
-        <button
-          @click="setFilter('subnet')"
-          :class="[
-            'group relative px-4 py-3 rounded-xl font-semibold transition-all duration-300 overflow-hidden',
-            filterType === 'subnet'
-              ? isDark() 
-                ? 'bg-slate-700 border-2 border-slate-500 text-white shadow-lg'
-                : 'bg-cyan-100 border-2 border-cyan-400 text-cyan-700 shadow-md'
-              : isDark()
-                ? 'bg-slate-900/50 border border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-slate-800/50'
-                : 'bg-white border border-slate-300 text-slate-600 hover:border-cyan-300 hover:bg-slate-50'
-          ]"
-        >
-          <div class="relative z-10 flex items-center justify-center gap-2">
-            <GitBranch class="w-5 h-5" />
-            <span>Subred</span>
-          </div>
-        </button>
-
-        <button
-          @click="setFilter('search')"
-          :class="[
-            'group relative px-4 py-3 rounded-xl font-semibold transition-all duration-300 overflow-hidden',
-            filterType === 'search'
-              ? isDark() 
-                ? 'bg-slate-700 border-2 border-slate-500 text-white shadow-lg'
-                : 'bg-cyan-100 border-2 border-cyan-400 text-cyan-700 shadow-md'
-              : isDark()
-                ? 'bg-slate-900/50 border border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-slate-800/50'
-                : 'bg-white border border-slate-300 text-slate-600 hover:border-cyan-300 hover:bg-slate-50'
-          ]"
-        >
-          <div class="relative z-10 flex items-center justify-center gap-2">
-            <Search class="w-5 h-5" />
-            <span>Buscar</span>
-          </div>
-        </button>
-
-        <button
-          @click="setFilter('date')"
-          :class="[
-            'group relative px-4 py-3 rounded-xl font-semibold transition-all duration-300 overflow-hidden',
-            filterType === 'date'
-              ? isDark() 
-                ? 'bg-slate-700 border-2 border-slate-500 text-white shadow-lg'
-                : 'bg-cyan-100 border-2 border-cyan-400 text-cyan-700 shadow-md'
-              : isDark()
-                ? 'bg-slate-900/50 border border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-slate-800/50'
-                : 'bg-white border border-slate-300 text-slate-600 hover:border-cyan-300 hover:bg-slate-50'
-          ]"
-        >
-          <div class="relative z-10 flex items-center justify-center gap-2">
-            <Clock class="w-5 h-5" />
-            <span>Fecha</span>
-          </div>
-        </button>
-      </div>
-
-      <Transition name="fade-slide" mode="out-in">
-        <div 
-          v-if="filterType === 'range'" 
-          class="rounded-2xl p-6 border"
-          :class="isDark() ? 'bg-slate-800/30 border-slate-700/50' : 'bg-slate-50 border-slate-200'"
-        >
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label 
-                class="text-xs font-semibold mb-2 block uppercase"
-                :class="isDark() ? 'text-slate-400' : 'text-slate-600'"
-              >IP Inicial</label>
-              <input
-                v-model="filterStartIp"
-                class="w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all"
-                :class="isDark() 
-                  ? 'bg-slate-900/50 border-slate-600 text-white placeholder-slate-500 focus:ring-cyan-500/60 focus:border-cyan-500/50'
-                  : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400 focus:ring-cyan-400 focus:border-cyan-400'"
-                placeholder="192.168.0.1"
-              />
-            </div>
-            <div>
-              <label 
-                class="text-xs font-semibold mb-2 block uppercase"
-                :class="isDark() ? 'text-slate-400' : 'text-slate-600'"
-              >IP Final</label>
-              <input
-                v-model="filterEndIp"
-                class="w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all"
-                :class="isDark() 
-                  ? 'bg-slate-900/50 border-slate-600 text-white placeholder-slate-500 focus:ring-cyan-500/60 focus:border-cyan-500/50'
-                  : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400 focus:ring-cyan-400 focus:border-cyan-400'"
-                placeholder="192.168.0.254"
-              />
-            </div>
-            <div class="flex items-end">
-              <button
-                @click="applyFilter"
-                class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white rounded-xl px-6 py-3 font-bold shadow-lg shadow-cyan-500/30 hover:shadow-xl hover:shadow-cyan-500/40 transition-all duration-300"
-              >
-                Aplicar Filtro
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div 
-          v-else-if="filterType === 'subnet'" 
-          class="rounded-2xl p-6 border"
-          :class="isDark() ? 'bg-slate-800/30 border-slate-700/50' : 'bg-slate-50 border-slate-200'"
-        >
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label 
-                class="text-xs font-semibold mb-2 block uppercase"
-                :class="isDark() ? 'text-slate-400' : 'text-slate-600'"
-              >Subred CIDR</label>
-              <input
-                v-model="filterSubnet"
-                class="w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all"
-                :class="isDark() 
-                  ? 'bg-slate-900/50 border-slate-600 text-white placeholder-slate-500 focus:ring-cyan-500/60 focus:border-cyan-500/50'
-                  : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400 focus:ring-cyan-400 focus:border-cyan-400'"
-                placeholder="192.168.0.0/24"
-              />
-            </div>
-            <div class="flex items-end">
-              <button
-                @click="applyFilter"
-                class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white rounded-xl px-6 py-3 font-bold shadow-lg shadow-cyan-500/30 hover:shadow-xl hover:shadow-cyan-500/40 transition-all duration-300"
-              >
-                Aplicar Filtro
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div 
-          v-else-if="filterType === 'search'" 
-          class="rounded-2xl p-6 border"
-          :class="isDark() ? 'bg-slate-800/30 border-slate-700/50' : 'bg-slate-50 border-slate-200'"
-        >
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label 
-                class="text-xs font-semibold mb-2 block uppercase"
-                :class="isDark() ? 'text-slate-400' : 'text-slate-600'"
-              >Término de Búsqueda</label>
-              <input
-                v-model="searchQuery"
-                @keyup.enter="searchHosts"
-                class="w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all"
-                :class="isDark() 
-                  ? 'bg-slate-900/50 border-slate-600 text-white placeholder-slate-500 focus:ring-cyan-500/60 focus:border-cyan-500/50'
-                  : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400 focus:ring-cyan-400 focus:border-cyan-400'"
-                placeholder="IP, Hostname o Vendor..."
-              />
-            </div>
-            <div class="flex items-end">
-              <button
-                @click="searchHosts"
-                class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white rounded-xl px-6 py-3 font-bold shadow-lg shadow-cyan-500/30 hover:shadow-xl hover:shadow-cyan-500/40 transition-all duration-300 flex items-center justify-center gap-2"
-              >
-                <Search class="w-5 h-5" />
-                <span>Buscar</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div 
-          v-else-if="filterType === 'date'" 
-          class="rounded-2xl p-6 border"
-          :class="isDark() ? 'bg-slate-800/30 border-slate-700/50' : 'bg-slate-50 border-slate-200'"
-        >
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label 
-                class="text-xs font-semibold mb-2 block uppercase"
-                :class="isDark() ? 'text-slate-400' : 'text-slate-600'"
-              >Desde</label>
-              <input
-                v-model="filterStartDate"
-                type="date"
-                class="w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all"
-                :class="isDark() 
-                  ? 'bg-slate-900/50 border-slate-600 text-white placeholder-slate-500 focus:ring-cyan-500/60 focus:border-cyan-500/50'
-                  : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400 focus:ring-cyan-400 focus:border-cyan-400'"
-              />
-            </div>
-            <div>
-              <label 
-                class="text-xs font-semibold mb-2 block uppercase"
-                :class="isDark() ? 'text-slate-400' : 'text-slate-600'"
-              >Hasta</label>
-              <input
-                v-model="filterEndDate"
-                type="date"
-                class="w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all"
-                :class="isDark() 
-                  ? 'bg-slate-900/50 border-slate-600 text-white placeholder-slate-500 focus:ring-cyan-500/60 focus:border-cyan-500/50'
-                  : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400 focus:ring-cyan-400 focus:border-cyan-400'"
-              />
-            </div>
-            <div class="flex items-end gap-2">
-              <button
-                @click="applyDateFilter"
-                class="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white rounded-xl px-6 py-3 font-bold shadow-lg shadow-cyan-500/30 hover:shadow-xl hover:shadow-cyan-500/40 transition-all duration-300"
-              >
-                Filtrar
-              </button>
-              <button
-                @click="clearDateFilter"
-                class="px-4 py-3 rounded-xl font-semibold transition-all duration-300"
-                :class="isDark() 
-                  ? 'bg-slate-700 hover:bg-slate-600 text-white'
-                  : 'bg-slate-200 hover:bg-slate-300 text-slate-700'"
-              >
-                Limpiar
-              </button>
-            </div>
-          </div>
-          <p 
-            class="text-xs mt-3 flex items-center gap-2"
-            :class="isDark() ? 'text-slate-500' : 'text-slate-400'"
-          >
-            <Clock class="w-3 h-3" />
-            Filtra hosts por fecha de última conexión
-          </p>
-        </div>
-      </Transition>
-    </div>
+    <HostsFiltersPanel
+      :filter-type="filterType"
+      :filter-start-ip="filterStartIp"
+      :filter-end-ip="filterEndIp"
+      :filter-subnet="filterSubnet"
+      :search-query="searchQuery"
+      :filter-start-date="filterStartDate"
+      :filter-end-date="filterEndDate"
+      @set-filter="setFilter"
+      @reload-all="loadHosts"
+      @apply-filter="applyFilter"
+      @search-hosts="searchHosts"
+      @apply-date-filter="applyDateFilter"
+      @clear-date-filter="clearDateFilter"
+      @update:filter-start-ip="updateFilterStartIp"
+      @update:filter-end-ip="updateFilterEndIp"
+      @update:filter-subnet="updateFilterSubnet"
+      @update:search-query="updateSearchQuery"
+      @update:filter-start-date="updateFilterStartDate"
+      @update:filter-end-date="updateFilterEndDate"
+    />
 
     <div class="flex flex-wrap gap-3 mb-6">
       <button
@@ -1329,17 +764,16 @@ const formatLocal = (iso) => {
       <button
         v-if="selectedHosts.length > 0 && canUseSSH"
         @click="openSSHModal('selected')"
-        class="group relative overflow-hidden flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:via-rose-500 hover:to-red-500 text-white shadow-lg shadow-red-600/40 hover:shadow-red-500/50 transition-all duration-300 transform hover:scale-105 active:scale-95"
+        :class="btnDangerClass"
       >
-        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
-        <Power class="w-4 h-4 relative z-10" />
-        <span class="relative z-10">Apagar Seleccionados ({{ selectedHosts.length }})</span>
+        <Power class="w-4 h-4" />
+        <span>Apagar Seleccionados ({{ selectedHosts.length }})</span>
       </button>
 
       <button
         v-if="selectedHosts.length > 0 && canDeleteResources"
         @click="deleteSelectedHosts"
-        class="flex items-center justify-center gap-2 px-5 py-2 text-sm font-bold rounded-lg bg-rose-700 hover:bg-rose-800 text-white shadow-lg shadow-rose-600/50 transition-all duration-300 transform hover:scale-105 active:scale-95"
+        :class="btnDangerClass"
       >
         <Trash2 class="w-4 h-4" />
         Borrar Seleccionados ({{ selectedHosts.length }})
@@ -1348,11 +782,10 @@ const formatLocal = (iso) => {
       <button
         v-if="filterType === 'range' && canUseSSH"
         @click="openSSHModal('range')"
-        class="group relative overflow-hidden flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold rounded-xl bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 hover:from-orange-500 hover:via-amber-500 hover:to-orange-500 text-white shadow-lg shadow-orange-600/40 hover:shadow-orange-500/50 transition-all duration-300 transform hover:scale-105 active:scale-95"
+        :class="btnDangerClass"
       >
-        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
-        <Power class="w-4 h-4 relative z-10" />
-        <span class="relative z-10">Apagar Rango</span>
+        <Power class="w-4 h-4" />
+        <span>Apagar Rango</span>
       </button>
     </div>
 
@@ -1360,421 +793,39 @@ const formatLocal = (iso) => {
       {{ error }}
     </div>
 
-    <div 
-      ref="tableRef" 
-      class="overflow-x-auto rounded-2xl shadow-2xl border"
-      :class="isDark() 
-        ? 'bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-slate-700/50'
-        : 'bg-gradient-to-br from-white via-slate-50 to-white border-slate-200'"
-    >
-      <table class="min-w-full divide-y" :class="isDark() ? 'divide-slate-700/50' : 'divide-slate-200'" role="table" aria-label="Tabla de hosts descubiertos">
-        <thead 
-          class="backdrop-blur-sm"
-          :class="isDark() 
-            ? 'bg-gradient-to-r from-slate-800/80 via-slate-900/80 to-slate-800/80'
-            : 'bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100'"
-        >
-          <tr>
-            <th class="px-4 py-4">
-              <div class="flex items-center justify-center">
-                <input
-                  type="checkbox"
-                  @change="selectAll"
-                  :checked="selectedHosts.length === hosts.length && hosts.length > 0"
-                  class="w-5 h-5 appearance-none border-2 rounded-md transition-all duration-200 cursor-pointer relative
-                  before:content-['✓'] before:absolute before:inset-0 before:flex before:items-center before:justify-center before:text-white before:text-sm before:font-bold before:opacity-0 checked:before:opacity-100 before:transition-opacity"
-                  :class="isDark()
-                    ? 'bg-slate-700 border-slate-500 checked:bg-gradient-to-br checked:from-cyan-500 checked:to-blue-600 checked:border-cyan-400 hover:border-cyan-400'
-                    : 'bg-white border-slate-300 checked:bg-gradient-to-br checked:from-cyan-400 checked:to-blue-500 checked:border-cyan-400 hover:border-cyan-400'"
-                />
-              </div>
-            </th>
-            <th class="px-6 py-4 text-left">
-              <button 
-                type="button"
-                @click.stop="toggleSort('ip')"
-                class="flex items-center gap-2 hover:opacity-80 transition-opacity group cursor-pointer"
-              >
-                <Wifi 
-                  class="w-4 h-4"
-                  :class="isDark() ? 'text-cyan-400' : 'text-cyan-600'"
-                />
-                <span 
-                  class="text-xs font-bold uppercase tracking-wider"
-                  :class="isDark() ? 'text-slate-200' : 'text-slate-700'"
-                >IP</span>
-                <ArrowUp v-if="sortField === 'ip' && sortDirection === 'asc'" class="w-3 h-3 text-cyan-400" />
-                <ArrowDown v-else-if="sortField === 'ip' && sortDirection === 'desc'" class="w-3 h-3 text-cyan-400" />
-                <ChevronsUpDown v-else class="w-3 h-3 opacity-30 group-hover:opacity-60" :class="isDark() ? 'text-slate-400' : 'text-slate-500'" />
-              </button>
-            </th>
-            <th class="px-6 py-4 text-left">
-              <button 
-                type="button"
-                @click.stop="toggleSort('hostname')"
-                class="flex items-center gap-2 hover:opacity-80 transition-opacity group cursor-pointer"
-              >
-                <Globe 
-                  class="w-4 h-4"
-                  :class="isDark() ? 'text-cyan-400' : 'text-cyan-600'"
-                />
-                <span 
-                  class="text-xs font-bold uppercase tracking-wider"
-                  :class="isDark() ? 'text-slate-200' : 'text-slate-700'"
-                >Hostname</span>
-                <ArrowUp v-if="sortField === 'hostname' && sortDirection === 'asc'" class="w-3 h-3 text-cyan-400" />
-                <ArrowDown v-else-if="sortField === 'hostname' && sortDirection === 'desc'" class="w-3 h-3 text-cyan-400" />
-                <ChevronsUpDown v-else class="w-3 h-3 opacity-30 group-hover:opacity-60" :class="isDark() ? 'text-slate-400' : 'text-slate-500'" />
-              </button>
-            </th>
-            <th class="px-6 py-4 text-left">
-              <button 
-                type="button"
-                @click.stop="toggleSort('nickname')"
-                class="flex items-center gap-2 hover:opacity-80 transition-opacity group cursor-pointer"
-              >
-                <Pencil 
-                  class="w-4 h-4"
-                  :class="isDark() ? 'text-cyan-400' : 'text-cyan-600'"
-                />
-                <span 
-                  class="text-xs font-bold uppercase tracking-wider"
-                  :class="isDark() ? 'text-slate-200' : 'text-slate-700'"
-                >Apodo</span>
-                <ArrowUp v-if="sortField === 'nickname' && sortDirection === 'asc'" class="w-3 h-3 text-cyan-400" />
-                <ArrowDown v-else-if="sortField === 'nickname' && sortDirection === 'desc'" class="w-3 h-3 text-cyan-400" />
-                <ChevronsUpDown v-else class="w-3 h-3 opacity-30 group-hover:opacity-60" :class="isDark() ? 'text-slate-400' : 'text-slate-500'" />
-              </button>
-            </th>
-            <th class="px-6 py-4 text-left">
-              <button 
-                type="button"
-                @click.stop="toggleSort('mac')"
-                class="flex items-center gap-2 hover:opacity-80 transition-opacity group cursor-pointer"
-              >
-                <Network 
-                  class="w-4 h-4"
-                  :class="isDark() ? 'text-cyan-400' : 'text-cyan-600'"
-                />
-                <span 
-                  class="text-xs font-bold uppercase tracking-wider"
-                  :class="isDark() ? 'text-slate-200' : 'text-slate-700'"
-                >MAC</span>
-                <ArrowUp v-if="sortField === 'mac' && sortDirection === 'asc'" class="w-3 h-3 text-cyan-400" />
-                <ArrowDown v-else-if="sortField === 'mac' && sortDirection === 'desc'" class="w-3 h-3 text-cyan-400" />
-                <ChevronsUpDown v-else class="w-3 h-3 opacity-30 group-hover:opacity-60" :class="isDark() ? 'text-slate-400' : 'text-slate-500'" />
-              </button>
-            </th>
-            <th class="px-6 py-4 text-left">
-              <button 
-                type="button"
-                @click.stop="toggleSort('vendor')"
-                class="flex items-center gap-2 hover:opacity-80 transition-opacity group cursor-pointer"
-              >
-                <Tag 
-                  class="w-4 h-4"
-                  :class="isDark() ? 'text-cyan-400' : 'text-cyan-600'"
-                />
-                <span 
-                  class="text-xs font-bold uppercase tracking-wider"
-                  :class="isDark() ? 'text-slate-200' : 'text-slate-700'"
-                >Vendor</span>
-                <ArrowUp v-if="sortField === 'vendor' && sortDirection === 'asc'" class="w-3 h-3 text-cyan-400" />
-                <ArrowDown v-else-if="sortField === 'vendor' && sortDirection === 'desc'" class="w-3 h-3 text-cyan-400" />
-                <ChevronsUpDown v-else class="w-3 h-3 opacity-30 group-hover:opacity-60" :class="isDark() ? 'text-slate-400' : 'text-slate-500'" />
-              </button>
-            </th>
-            <th class="px-6 py-4 text-left">
-              <button 
-                type="button"
-                @click.stop="toggleSort('os_name')"
-                class="flex items-center gap-2 hover:opacity-80 transition-opacity group cursor-pointer"
-              >
-                <Monitor 
-                  class="w-4 h-4"
-                  :class="isDark() ? 'text-cyan-400' : 'text-cyan-600'"
-                />
-                <span 
-                  class="text-xs font-bold uppercase tracking-wider"
-                  :class="isDark() ? 'text-slate-200' : 'text-slate-700'"
-                >Sistema Operativo</span>
-                <ArrowUp v-if="sortField === 'os_name' && sortDirection === 'asc'" class="w-3 h-3 text-cyan-400" />
-                <ArrowDown v-else-if="sortField === 'os_name' && sortDirection === 'desc'" class="w-3 h-3 text-cyan-400" />
-                <ChevronsUpDown v-else class="w-3 h-3 opacity-30 group-hover:opacity-60" :class="isDark() ? 'text-slate-400' : 'text-slate-500'" />
-              </button>
-            </th>
-            <th class="px-6 py-4 text-left">
-              <button 
-                type="button"
-                @click.stop="toggleSort('status')"
-                class="flex items-center gap-2 hover:opacity-80 transition-opacity group cursor-pointer"
-              >
-                <Activity 
-                  class="w-4 h-4"
-                  :class="isDark() ? 'text-cyan-400' : 'text-cyan-600'"
-                />
-                <span 
-                  class="text-xs font-bold uppercase tracking-wider"
-                  :class="isDark() ? 'text-slate-200' : 'text-slate-700'"
-                >Estado</span>
-                <ArrowUp v-if="sortField === 'status' && sortDirection === 'asc'" class="w-3 h-3 text-cyan-400" />
-                <ArrowDown v-else-if="sortField === 'status' && sortDirection === 'desc'" class="w-3 h-3 text-cyan-400" />
-                <ChevronsUpDown v-else class="w-3 h-3 opacity-30 group-hover:opacity-60" :class="isDark() ? 'text-slate-400' : 'text-slate-500'" />
-              </button>
-            </th>
-            <th class="px-6 py-4 text-left">
-              <div class="flex items-center gap-2">
-                <Server 
-                  class="w-4 h-4"
-                  :class="isDark() ? 'text-cyan-400' : 'text-cyan-600'"
-                />
-                <span 
-                  class="text-xs font-bold uppercase tracking-wider"
-                  :class="isDark() ? 'text-slate-200' : 'text-slate-700'"
-                >Puertos</span>
-              </div>
-            </th>
-            <th class="px-6 py-4 text-left">
-              <button 
-                type="button"
-                @click.stop="toggleSort('last_seen')"
-                class="flex items-center gap-2 hover:opacity-80 transition-opacity group cursor-pointer"
-              >
-                <Clock 
-                  class="w-4 h-4"
-                  :class="isDark() ? 'text-cyan-400' : 'text-cyan-600'"
-                />
-                <span 
-                  class="text-xs font-bold uppercase tracking-wider"
-                  :class="isDark() ? 'text-slate-200' : 'text-slate-700'"
-                >Última Conexión</span>
-                <ArrowUp v-if="sortField === 'last_seen' && sortDirection === 'asc'" class="w-3 h-3 text-cyan-400" />
-                <ArrowDown v-else-if="sortField === 'last_seen' && sortDirection === 'desc'" class="w-3 h-3 text-cyan-400" />
-                <ChevronsUpDown v-else class="w-3 h-3 opacity-30 group-hover:opacity-60" :class="isDark() ? 'text-slate-400' : 'text-slate-500'" />
-              </button>
-            </th>
-            <th class="px-6 py-4 text-left">
-              <div class="flex items-center gap-2">
-                <Settings 
-                  class="w-4 h-4"
-                  :class="isDark() ? 'text-cyan-400' : 'text-cyan-600'"
-                />
-                <span 
-                  class="text-xs font-bold uppercase tracking-wider"
-                  :class="isDark() ? 'text-slate-200' : 'text-slate-700'"
-                >Acciones</span>
-              </div>
-            </th>
-          </tr>
-        </thead>
-
-        <tbody 
-          class="divide-y"
-          :class="isDark() 
-            ? 'divide-slate-700/30 bg-slate-900/50'
-            : 'divide-slate-200 bg-white'"
-        >
-          <tr v-if="loading && hosts.length === 0">
-            <td colspan="11" class="px-6 py-8">
-              <SkeletonLoader type="table" :rows="5" :columns="9" />
-            </td>
-          </tr>
-          
-          <tr v-else-if="hosts.length === 0">
-            <td colspan="11" class="px-6 py-8 text-center">
-              <div class="flex flex-col items-center gap-2">
-                <Search class="w-12 h-12 text-slate-600" />
-                <span class="text-slate-400 font-medium">No se encontraron hosts</span>
-              </div>
-            </td>
-          </tr>
-          
-          <tr
-            v-for="host in paginatedHosts"
-            :key="host.id"
-            :class="[
-              'transition-all duration-200 border-l-4',
-              isSelected(host)
-                ? 'bg-cyan-900/20 hover:bg-cyan-800/30 border-cyan-400'
-                : 'hover:bg-slate-800/40 border-transparent hover:border-slate-600'
-            ]"
-          >
-            <td class="px-4 py-4">
-              <div class="flex items-center justify-center">
-                <input
-                  type="checkbox"
-                  :checked="isSelected(host)"
-                  @change="toggleSelection(host)"
-                  class="w-5 h-5 appearance-none bg-slate-700 border-2 border-slate-500 rounded-md checked:bg-gradient-to-br checked:from-cyan-500 checked:to-blue-600 checked:border-cyan-400 hover:border-cyan-400 transition-all duration-200 cursor-pointer relative
-                  before:content-['✓'] before:absolute before:inset-0 before:flex before:items-center before:justify-center before:text-white before:text-sm before:font-bold before:opacity-0 checked:before:opacity-100 before:transition-opacity"
-                />
-              </div>
-            </td>
-
-            <td class="px-6 py-4 text-sm font-mono font-semibold text-cyan-300">{{ host.ip }}</td>
-            <td class="px-6 py-4 text-sm text-slate-300">{{ host.hostname || 'N/A' }}</td>
-            <td class="px-6 py-4 text-sm">
-              <div v-if="editingNickname === host.ip" class="flex items-center gap-1">
-                <input
-                  v-model="nicknameInput"
-                  @keyup.enter="saveNickname(host)"
-                  @keyup.escape="cancelEditNickname()"
-                  class="w-32 px-2 py-1 text-sm rounded-lg border focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                  :class="isDark() 
-                    ? 'bg-slate-800 border-slate-600 text-slate-200' 
-                    : 'bg-white border-slate-300 text-slate-800'"
-                  placeholder="Apodo..."
-                  :disabled="savingNickname"
-                  ref="nicknameInputRef"
-                />
-                <button
-                  @click="saveNickname(host)"
-                  :disabled="savingNickname"
-                  class="flex items-center justify-center w-7 h-7 rounded-lg text-green-400 hover:text-green-300 bg-green-900/20 hover:bg-green-900/40 border border-green-700/30 transition-all duration-200"
-                  title="Guardar"
-                >
-                  <Check class="w-3.5 h-3.5" />
-                </button>
-                <button
-                  @click="cancelEditNickname()"
-                  class="flex items-center justify-center w-7 h-7 rounded-lg text-red-400 hover:text-red-300 bg-red-900/20 hover:bg-red-900/40 border border-red-700/30 transition-all duration-200"
-                  title="Cancelar"
-                >
-                  <X class="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div v-else class="flex items-center gap-1 group/nick">
-                <span :class="host.nickname ? (isDark() ? 'text-amber-300' : 'text-amber-600') : 'text-slate-500'">
-                  {{ host.nickname || '—' }}
-                </span>
-                <button
-                  v-if="canEditResources"
-                  @click="startEditNickname(host)"
-                  class="opacity-0 group-hover/nick:opacity-100 flex items-center justify-center w-6 h-6 rounded-md transition-all duration-200"
-                  :class="isDark() 
-                    ? 'text-slate-400 hover:text-cyan-400 hover:bg-slate-700' 
-                    : 'text-slate-400 hover:text-cyan-600 hover:bg-slate-100'"
-                  title="Editar apodo"
-                >
-                  <Pencil class="w-3 h-3" />
-                </button>
-              </div>
-            </td>
-            <td class="px-6 py-4 text-sm font-mono text-slate-400">{{ host.mac || 'N/A' }}</td>
-            <td class="px-6 py-4">
-              <span v-if="host.vendor && host.vendor !== 'N/A'" class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-                {{ host.vendor }}
-              </span>
-              <span v-else class="text-sm text-slate-500">N/A</span>
-            </td>
-            <td class="px-6 py-4">
-              <span v-if="host.os_name && host.os_name !== 'N/A'" class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-blue-900/30 text-blue-300 border border-blue-700/50">
-                {{ host.os_name }}
-              </span>
-              <span v-else class="text-sm text-slate-500">N/A</span>
-            </td>
-
-            <td class="px-6 py-4">
-              <span
-                :class="[
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg uppercase tracking-wide transition-all duration-200',
-                  host.status === 'up'
-                    ? 'bg-gradient-to-r from-green-900/50 to-emerald-900/50 text-green-300 border border-green-700/50 shadow-lg shadow-green-500/20'
-                    : 'bg-gradient-to-r from-red-900/50 to-rose-900/50 text-red-300 border border-red-700/50 shadow-lg shadow-red-500/20',
-                ]"
-              >
-                <div :class="['w-2 h-2 rounded-full', host.status === 'up' ? 'bg-green-400 animate-pulse' : 'bg-red-400']"></div>
-                {{ host.status }}
-              </span>
-            </td>
-            <td class="px-6 py-4">
-              <span class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-purple-900/30 text-purple-300 border border-purple-700/50">
-                {{ host.ports?.length || 0 }} open
-              </span>
-            </td>
-            <td class="px-6 py-4 text-sm text-slate-400">
-              {{ formatLocal(host.last_seen) || 'N/A' }}
-            </td>
-            <td class="px-6 py-4 text-sm">
-              <div class="flex gap-2">
-                <!-- Ver detalles -->
-                <button
-                  @click="showDetails(host)"
-                  class="flex items-center justify-center w-9 h-9 rounded-lg text-blue-400 hover:text-blue-300 bg-blue-900/20 hover:bg-blue-900/40 border border-blue-700/30 hover:border-blue-600/50 shadow-md shadow-blue-400/10 hover:shadow-blue-400/20 transition-all duration-200 transform hover:scale-110 active:scale-95"
-                  title="Ver detalles"
-                >
-                  <Eye class="w-4 h-4" />
-                </button>
-
-                <button
-                  v-if="canDeleteResources"
-                  @click="deleteHostConfirm(host.ip)"
-                  class="flex items-center justify-center w-9 h-9 rounded-lg text-red-400 hover:text-red-300 bg-red-900/20 hover:bg-red-900/40 border border-red-700/30 hover:border-red-600/50 shadow-md shadow-red-400/10 hover:shadow-red-400/20 transition-all duration-200 transform hover:scale-110 active:scale-95"
-                  title="Eliminar host"
-                >
-                  <Trash2 class="w-4 h-4" />
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Pagination controls -->
-    <div v-if="filteredHosts.length > 0"
-      class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 px-2">
-      <div class="flex items-center gap-3">
-        <span class="text-sm" :class="isDark() ? 'text-slate-400' : 'text-slate-600'">
-          Mostrando {{ (currentPage - 1) * pageSize + 1 }}-{{ Math.min(currentPage * pageSize, totalFiltered) }} de {{ totalFiltered }} hosts
-        </span>
-        <select
-          :value="pageSize"
-          @change="changePageSize(Number($event.target.value))"
-          class="px-2 py-1 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-          :class="isDark() ? 'bg-slate-800 border border-slate-600 text-white' : 'bg-white border border-slate-300 text-slate-800'"
-        >
-          <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }} por página</option>
-        </select>
-      </div>
-      <div class="flex items-center gap-1">
-        <button
-          @click="goToPage(1)"
-          :disabled="currentPage === 1"
-          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-30"
-          :class="isDark() ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:hover:bg-slate-800' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 disabled:hover:bg-white'"
-        >«</button>
-        <button
-          @click="goToPage(currentPage - 1)"
-          :disabled="currentPage === 1"
-          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-30"
-          :class="isDark() ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:hover:bg-slate-800' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 disabled:hover:bg-white'"
-        >‹</button>
-        <button
-          v-for="page in visiblePages"
-          :key="page"
-          @click="goToPage(page)"
-          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-          :class="page === currentPage
-            ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/30'
-            : isDark()
-              ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-300'"
-        >{{ page }}</button>
-        <button
-          @click="goToPage(currentPage + 1)"
-          :disabled="currentPage === totalPages"
-          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-30"
-          :class="isDark() ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:hover:bg-slate-800' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 disabled:hover:bg-white'"
-        >›</button>
-        <button
-          @click="goToPage(totalPages)"
-          :disabled="currentPage === totalPages"
-          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-30"
-          :class="isDark() ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:hover:bg-slate-800' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 disabled:hover:bg-white'"
-        >»</button>
-      </div>
-    </div>
+    <HostsDataTable
+      :loading="loading"
+      :hosts="hosts"
+      :paginated-hosts="paginatedHosts"
+      :filtered-hosts-length="filteredHosts.length"
+      :total-filtered="totalFiltered"
+      :current-page="currentPage"
+      :page-size="pageSize"
+      :page-size-options="pageSizeOptions"
+      :total-pages="totalPages"
+      :visible-pages="visiblePages"
+      :selected-hosts="selectedHosts"
+      :sort-field="sortField"
+      :sort-direction="sortDirection"
+      :editing-nickname="editingNickname"
+      :nickname-input="nicknameInput"
+      :saving-nickname="savingNickname"
+      :can-edit-resources="canEditResources"
+      :can-delete-resources="canDeleteResources"
+      :is-selected="isSelected"
+      :format-local="formatLocal"
+      @select-all="selectAll"
+      @toggle-selection="toggleSelection"
+      @toggle-sort="toggleSort"
+      @start-edit-nickname="startEditNickname"
+      @cancel-edit-nickname="cancelEditNickname"
+      @save-nickname="saveNickname"
+      @show-details="showDetails"
+      @delete-host-confirm="deleteHostConfirm"
+      @go-to-page="goToPage"
+      @change-page-size="changePageSize"
+      @update:nickname-input="updateNicknameInput"
+    />
 
     <div
       v-if="showSSHModal"

@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import nmap
 
 from app.scanners.common import get_ws_manager
@@ -61,7 +61,7 @@ async def full_host_scan(host: str, include_vulns: bool = False, emit_progress: 
             "services": [],
             "os": None,
             "vulnerabilities": [],
-            "last_seen": datetime.utcnow().isoformat() + "Z"
+            "last_seen": datetime.now(timezone.utc).isoformat() + "Z"
         }
 
     mac = None
@@ -132,7 +132,7 @@ async def full_host_scan(host: str, include_vulns: bool = False, emit_progress: 
         "services": services,
         "os": os_info,
         "vulnerabilities": vulnerabilities,
-        "last_seen": datetime.utcnow().isoformat() + "Z"
+        "last_seen": datetime.now(timezone.utc).isoformat() + "Z"
     }
 
     if ws_manager and scan_id:

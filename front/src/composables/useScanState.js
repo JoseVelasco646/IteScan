@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { useGlobalWebSocket } from './useWebSocket'
+import { suppressProgressAfterCancellation } from './useScanProgress'
 
 const isScanning = ref(false)
 const currentScanType = ref('')
@@ -8,6 +9,7 @@ const currentScanId = ref(null)
 
 
 const externalCancelFlag = ref(false)
+let scanProgressListenerInitialized = false
 
 
 const scanTypeLabels = {
@@ -20,6 +22,17 @@ const scanTypeLabels = {
 
 export function useScanState() {
   const ws = useGlobalWebSocket()
+
+  if (!scanProgressListenerInitialized) {
+    ws.on('scan_progress', (data) => {
+      if (!isScanning.value || currentScanId.value) return
+      if (!data || !data.scan_id) return
+
+      currentScanId.value = data.scan_id
+    })
+
+    scanProgressListenerInitialized = true
+  }
 
   const scanDisplayName = computed(() => {
     return scanTypeLabels[currentScanType.value] || currentScanType.value || ''
@@ -46,11 +59,23 @@ export function useScanState() {
 
 
   const cancelActiveScan = () => {
-    if (currentScanId.value && ws.connected.value) {
-      ws.send(JSON.stringify({
-        type: 'cancel_scan',
-        scan_id: currentScanId.value
-      }))
+    if (currentScanId.value) {
+      suppressProgressAfterCancellation([currentScanId.value])
+    } else {
+      suppressProgressAfterCancellation()
+    }
+
+    if (ws.connected.value) {
+      if (currentScanId.value) {
+        ws.send(JSON.stringify({
+          type: 'cancel_scan',
+          scan_id: currentScanId.value
+        }))
+      } else {
+        ws.send(JSON.stringify({
+          type: 'cancel_active_scans'
+        }))
+      }
     }
 
     if (currentAbortController.value) {

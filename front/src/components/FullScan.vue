@@ -34,19 +34,27 @@ import {
 import { useTheme } from "../composables/useTheme";
 import { useToast } from "../composables/useToast";
 import { usePermissions } from "../composables/usePermissions";
+import { useButtonClasses } from "../composables/useButtonClasses";
+import { formatDateTime, formatDurationCompact } from "../utils/dateTime";
+import {
+  normalizeFullScanResultsForHistory,
+  summarizeFullScanResults,
+} from "../utils/fullScanUtils";
+import { expandIPv4Range } from "../utils/networkHosts";
 import ActiveScanBanner from "./ActiveScanBanner.vue";
 import OSIcon from "./OSIcon.vue";
 import NumberStepper from "./NumberStepper.vue";
 
 const { isScanning, currentScanType, startScan, endScan, setScanId, externalCancelFlag } = useScanState();
 
-// Este componente es dueño de escaneos que empiecen con 'full-scan'
+
 const isMyOwnScan = computed(() => currentScanType.value.startsWith('full-scan'));
 const otherScanActive = computed(() => isScanning.value && !isMyOwnScan.value);
 const { isDark } = useTheme();
 const ws = useGlobalWebSocket();
 const toast = useToast();
 const { canExecuteScans, canDeleteResources } = usePermissions();
+const { btnCTAClass, btnDangerCTAClass } = useButtonClasses();
 
 const scanType = ref("single"); 
 const singleHost = ref("");
@@ -148,26 +156,17 @@ const clearHistory = async () => {
 
 const saveToHistory = async (scanTypeVal, target, resultsList, statusVal, errorMsg = null) => {
   const duration = scanStartTime.value ? ((Date.now() - scanStartTime.value) / 1000) : null;
-  const active = resultsList.filter(r => r.status === 'up' || r.status === 'success').length;
-  const ports = resultsList.reduce((s, r) => s + (r.ports?.length || r.data?.ports?.length || 0), 0);
-  const services = resultsList.reduce((s, r) => s + (r.services?.length || r.data?.services?.length || 0), 0);
-  
-  // Preparar los resultados para guardar (normalizar data wrapper de single scan)
-  const normalizedResults = resultsList.map(r => {
-    if (r.data) {
-      return { ...r.data, _status: r.status, _message: r.message };
-    }
-    return r;
-  });
+  const summary = summarizeFullScanResults(resultsList);
+  const normalizedResults = normalizeFullScanResultsForHistory(resultsList);
 
   try {
     await scannerAPI.saveFullScanHistory({
       scan_type: scanTypeVal,
       target,
-      hosts_scanned: resultsList.length,
-      hosts_active: active,
-      total_ports: ports,
-      total_services: services,
+      hosts_scanned: summary.hostsScanned,
+      hosts_active: summary.hostsActive,
+      total_ports: summary.totalPorts,
+      total_services: summary.totalServices,
       status: statusVal,
       duration_seconds: duration ? parseFloat(duration.toFixed(2)) : null,
       scan_results: normalizedResults,
@@ -180,17 +179,11 @@ const saveToHistory = async (scanTypeVal, target, resultsList, statusVal, errorM
 };
 
 const formatHistoryDate = (iso) => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  return formatDateTime(iso, { locale: 'es-MX', fallback: '—', shortMonth: true });
 };
 
 const formatDurationShort = (seconds) => {
-  if (!seconds) return '—';
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return `${m}m ${s}s`;
+  return formatDurationCompact(seconds, '—');
 };
 
 // Stats computadas
@@ -337,6 +330,13 @@ const toggleSort = (key) => {
 let abortController = null;
 let removeWsListener = null;
 
+const resetCancelledScanState = () => {
+  scanPhase.value = 'idle';
+  currentHosts.value = [];
+  progressPercent.value = 0;
+  progressMessage.value = '';
+};
+
 onMounted(() => {
   // Escuchar progreso del full_range scan via WebSocket
   removeWsListener = ws.on('scan_progress', (data) => {
@@ -357,10 +357,7 @@ watch(externalCancelFlag, (cancelled) => {
     scanCancelled.value = true;
     error.value = "Escaneo cancelado";
     loading.value = false;
-    scanPhase.value = 'idle';
-    currentHosts.value = [];
-    progressPercent.value = 0;
-    progressMessage.value = '';
+    resetCancelledScanState();
     endScan();
   }
 });
@@ -513,11 +510,6 @@ const scanRange = async () => {
       return;
     }
 
-    const startLast = parseInt(startParts[3]);
-    const endLast = parseInt(endParts[3]);
-    const startThird = parseInt(startParts[2]);
-    const endThird = parseInt(endParts[2]);
-
     if (startParts[0] !== endParts[0] || startParts[1] !== endParts[1]) {
       error.value = "El rango debe estar en la misma red (los dos primeros octetos deben coincidir)";
       loading.value = false;
@@ -525,13 +517,12 @@ const scanRange = async () => {
       return;
     }
 
-    const hosts = [];
-    for (let third = startThird; third <= endThird; third++) {
-      const start = third === startThird ? startLast : 1;
-      const end = third === endThird ? endLast : 254;
-      for (let last = start; last <= end; last++) {
-        hosts.push(`${startParts[0]}.${startParts[1]}.${third}.${last}`);
-      }
+    const hosts = expandIPv4Range(rangeStart.value, rangeEnd.value);
+    if (hosts.length === 0) {
+      error.value = "No se pudo generar un rango de hosts válido";
+      loading.value = false;
+      endScan();
+      return;
     }
 
     totalHosts.value = hosts.length;
@@ -600,10 +591,7 @@ const cancelScan = () => {
     abortController.abort();
     error.value = "Escaneo cancelado";
     loading.value = false;
-    scanPhase.value = 'idle';
-    currentHosts.value = [];
-    progressPercent.value = 0;
-    progressMessage.value = '';
+    resetCancelledScanState();
     endScan();
   }
 };
@@ -1251,12 +1239,12 @@ const quickFillRange = (preset) => {
         v-if="canExecuteScans"
         @click="handleScan"
         :disabled="loading || otherScanActive"
-        class="group w-full py-5 rounded-2xl font-bold text-lg transition-all duration-300 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed shadow-xl hover:shadow-2xl hover:shadow-emerald-500/30 disabled:shadow-none text-white relative overflow-hidden"
+        :class="btnCTAClass"
       >
-        <div class="relative z-10 flex items-center justify-center gap-3">
+        <span class="flex items-center justify-center gap-3 relative z-10">
           <svg
             v-if="!loading"
-            class="w-6 h-6 group-hover:scale-110 transition-transform"
+            class="w-5 h-5 transition-transform duration-300 group-hover:scale-125"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -1270,7 +1258,7 @@ const quickFillRange = (preset) => {
           </svg>
           <svg
             v-else
-            class="w-6 h-6 animate-spin"
+            class="w-5 h-5 animate-spin"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -1282,26 +1270,20 @@ const quickFillRange = (preset) => {
               d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
             />
           </svg>
-          <span>
-            {{
-              loading
-                ? "Escaneando..."
-                : otherScanActive
-                  ? "Otro escaneo en curso..."
-                  : "Iniciar Escaneo Completo"
-            }}
-          </span>
-        </div>
-        <div
-          v-if="!loading && !otherScanActive"
-          class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700"
-        ></div>
+          {{
+            loading
+              ? "Escaneando..."
+              : otherScanActive
+                ? "Otro escaneo en curso..."
+                : "Iniciar Escaneo Completo"
+          }}
+        </span>
       </button>
 
       <button
         v-if="loading"
         @click="cancelScan"
-        class="w-full py-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 transition-all text-white font-semibold shadow-lg hover:shadow-xl hover:shadow-red-500/30 flex items-center justify-center gap-2"
+        :class="btnDangerCTAClass"
       >
         <svg
           class="w-5 h-5"

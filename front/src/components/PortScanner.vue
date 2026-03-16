@@ -1,16 +1,20 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { scannerAPI } from '../api/scanner'
 import { Shield, RefreshCw, Network, Server, X } from 'lucide-vue-next'
 import { useScanState } from '../composables/useScanState'
+import { useScanCancellation } from '../composables/useScanCancellation'
 import { useTheme } from '../composables/useTheme'
 import { usePermissions } from '../composables/usePermissions'
+import { useButtonClasses } from '../composables/useButtonClasses'
+import { parseHostsInput } from '../utils/networkHosts'
 import ActiveScanBanner from './ActiveScanBanner.vue'
 import NumberStepper from './NumberStepper.vue'
 
 const { isScanning, currentScanType, startScan, endScan, externalCancelFlag } = useScanState()
 const { isDark } = useTheme()
 const { canExecuteScans } = usePermissions()
+const { btnCTAClass, btnDangerCTAClass } = useButtonClasses()
 
 const isMyOwnScan = computed(() => currentScanType.value === 'port-scan')
 const otherScanActive = computed(() => isScanning.value && !isMyOwnScan.value)
@@ -22,7 +26,19 @@ const concurrency = ref(50)
 const results = ref(null)
 const loading = ref(false)
 const error = ref('')
-let abortController = null
+
+const {
+  abortController,
+  createAbortController,
+  finalizeScan,
+  cancelScan,
+} = useScanCancellation({
+  loading,
+  error,
+  endScan,
+  externalCancelFlag,
+  isMyOwnScan,
+})
 
 const scanPortsSegment = async () => {
   if (!hosts.value.trim()) {
@@ -30,10 +46,7 @@ const scanPortsSegment = async () => {
     return
   }
 
-  const hostsArray = hosts.value
-    .split(',')
-    .map((h) => h.trim())
-    .filter(Boolean)
+  const hostsArray = parseHostsInput(hosts.value)
 
   if (hostsArray.length === 0) {
     error.value = 'Por favor ingresa al menos un host válido'
@@ -43,11 +56,11 @@ const scanPortsSegment = async () => {
   loading.value = true
   error.value = ''
   results.value = null
-  abortController = new AbortController()
-  startScan('port-scan', abortController)
+  const controller = createAbortController()
+  startScan('port-scan', controller)
 
   try {
-    const data = await scannerAPI.scanPortsSegment(hostsArray, ports.value, abortController.signal, hostTimeout.value, concurrency.value)
+    const data = await scannerAPI.scanPortsSegment(hostsArray, ports.value, controller.signal, hostTimeout.value, concurrency.value)
     results.value = data.results || data
   } catch (err) {
     if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
@@ -56,29 +69,9 @@ const scanPortsSegment = async () => {
       error.value = err.response?.data?.detail || 'Error escaneando puertos'
     }
   } finally {
-    abortController = null
-    loading.value = false
-    endScan()
+    finalizeScan()
   }
 }
-
-const cancelScan = () => {
-  if (abortController) {
-    abortController.abort()
-    error.value = 'Escaneo cancelado'
-    loading.value = false
-    endScan()
-  }
-}
-
-// Detectar cancelación externa (desde ActiveScanBanner u otro componente)
-watch(externalCancelFlag, (cancelled) => {
-  if (cancelled && isMyOwnScan.value && loading.value) {
-    error.value = 'Escaneo cancelado'
-    loading.value = false
-    endScan()
-  }
-})
 
 const presetPorts = [
   { label: 'Common (1-1024)', value: '1-1024' },
@@ -234,29 +227,20 @@ const presetPorts = [
         v-if="canExecuteScans"
         @click="scanPortsSegment"
         :disabled="loading || otherScanActive"
-        class="w-full group relative overflow-hidden py-6 rounded-2xl font-bold text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl"
-        :class="loading 
-          ? 'bg-slate-800 border-2 border-slate-600' 
-          : 'bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 hover:from-purple-500 hover:via-blue-500 hover:to-purple-500 border-2 border-purple-400/50 hover:border-purple-300 shadow-purple-500/20 hover:shadow-purple-400/30'"
+        :class="btnCTAClass"
       >
-        <div v-if="!loading && !otherScanActive" class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-        
-        <div class="relative z-10 flex items-center justify-center gap-3 text-white">
-          <RefreshCw :class="['w-6 h-6', loading && 'animate-spin']" />
-          <span class="tracking-wide">
-            {{ loading ? 'Escaneando Puertos...' : otherScanActive ? 'Otro escaneo en curso...' : 'Iniciar Escaneo de Puertos' }}
-          </span>
-        </div>
+        <RefreshCw :class="['w-6 h-6', loading && 'animate-spin']" />
+        <span>
+          {{ loading ? 'Escaneando Puertos...' : otherScanActive ? 'Otro escaneo en curso...' : 'Iniciar Escaneo de Puertos' }}
+        </span>
       </button>
 
       <button
         v-if="loading"
         @click="cancelScan"
-        class="w-full mt-3 group relative py-4 rounded-2xl font-bold text-lg transition-all duration-300 bg-red-900/50 hover:bg-red-800/60 border-2 border-red-700 hover:border-red-600 text-white shadow-lg"
+        :class="btnDangerCTAClass"
       >
-        <div class="relative z-10 flex items-center justify-center gap-3">
-          <span>Cancelar Escaneo</span>
-        </div>
+        <span>Cancelar Escaneo</span>
       </button>
     </div>
 

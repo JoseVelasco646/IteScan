@@ -7,6 +7,7 @@ import ToastNotification from './components/ToastNotification.vue'
 import { useToast } from './composables/useToast'
 import { useTheme } from './composables/useTheme'
 import { usePermissions } from './composables/usePermissions'
+import { disconnectGlobalWebSocket, useGlobalWebSocket } from './composables/useWebSocket'
 
 const router = useRouter()
 const route = useRoute()
@@ -14,8 +15,10 @@ const isBackendOnline = ref(false)
 const isAuthenticated = ref(false)
 const adminUser = ref(null)
 let statusCheckInterval = null
+const ws = useGlobalWebSocket()
+const wsCleanup = []
 
-const { toasts, warning: showWarningToast, muted: toastsMuted, setMuted: setToastsMuted } = useToast()
+const { toasts, warning: showWarningToast, info: showInfoToast, muted: toastsMuted, setMuted: setToastsMuted } = useToast()
 const { theme, toggleTheme, isDark } = useTheme()
 const { canManageUsers, userRole, isSuperAdmin, ROLE_LABELS, refreshPermissions } = usePermissions()
 
@@ -30,28 +33,58 @@ const checkBackendStatus = async () => {
   }
 }
 
-const checkAuth = () => {
+const checkAuth = async () => {
   const token = localStorage.getItem('admin_token')
-  const userData = localStorage.getItem('admin_user')
-  isAuthenticated.value = !!token
-  if (userData) {
-    try { adminUser.value = JSON.parse(userData) } catch { adminUser.value = null }
+  if (!token) {
+    isAuthenticated.value = false
+    adminUser.value = null
+    refreshPermissions()
+    return
   }
-  // Force usePermissions computeds to re-evaluate
+
+  try {
+    const { data } = await axios.get(`${API_URL}/api/auth/check`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 5000,
+    })
+
+    if (data?.authenticated && data?.user) {
+      isAuthenticated.value = true
+      adminUser.value = data.user
+      localStorage.setItem('admin_user', JSON.stringify(data.user))
+    } else {
+      logout(true)
+    }
+  } catch (err) {
+    const status = err?.response?.status
+    if (status === 401 || status === 403) {
+      logout(true)
+    }
+  }
+
   refreshPermissions()
 }
 
-const logout = () => {
+const logout = (forced = false, reason = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.') => {
+  disconnectGlobalWebSocket()
   localStorage.removeItem('admin_token')
   localStorage.removeItem('admin_user')
   isAuthenticated.value = false
   adminUser.value = null
+  refreshPermissions()
+
+  if (forced) {
+    showWarningToast(reason, 'Sesión expirada')
+    router.push({ name: 'login', query: { redirect: window.location.pathname, expired: '1' } })
+    return
+  }
+
   router.push('/login')
 }
 
 // Escuchar evento de sesión expirada
 const onSessionExpired = () => {
-  showWarningToast('Tu sesión ha expirado. Por favor inicia sesión nuevamente.', 'Sesión expirada')
+  logout(true)
 }
 
 onMounted(() => {
@@ -62,6 +95,22 @@ onMounted(() => {
     checkBackendStatus()
     checkAuth()
   }, 30000)
+
+  const removePermissionsUpdated = ws.on('auth_permissions_updated', async (data) => {
+    const previousRole = adminUser.value?.role || null
+    await checkAuth()
+
+    const nextRole = adminUser.value?.role || data?.role || null
+    if (previousRole && nextRole && previousRole !== nextRole) {
+      showInfoToast(`Tu rol cambió de ${ROLE_LABELS[previousRole] || previousRole} a ${ROLE_LABELS[nextRole] || nextRole}.`, 'Permisos actualizados')
+    }
+  })
+
+  const removeForceLogout = ws.on('auth_force_logout', (data) => {
+    logout(true, data?.reason || 'Tu sesión fue cerrada por cambios de cuenta.')
+  })
+
+  wsCleanup.push(removePermissionsUpdated, removeForceLogout)
   
   window.addEventListener('session-expired', onSessionExpired)
 })
@@ -71,10 +120,17 @@ watch(() => route.fullPath, () => {
   checkAuth()
 })
 
+watch([() => route.name, canManageUsers], ([routeName, hasAdminAccess]) => {
+  if (routeName === 'admin' && !hasAdminAccess) {
+    router.push('/')
+  }
+})
+
 onUnmounted(() => {
   if (statusCheckInterval) {
     clearInterval(statusCheckInterval)
   }
+  wsCleanup.forEach(fn => fn && fn())
   window.removeEventListener('session-expired', onSessionExpired)
 })
 

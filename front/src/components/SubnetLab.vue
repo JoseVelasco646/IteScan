@@ -6,6 +6,13 @@ import { usePermissions } from '../composables/usePermissions'
 import { useToast } from '../composables/useToast'
 import { useScanState } from '../composables/useScanState'
 import { useScanProgress } from '../composables/useScanProgress'
+import { useSSHCredentials } from '../composables/useSSHCredentials'
+import { useButtonClasses } from '../composables/useButtonClasses'
+import {
+  getSubnetDeviceStatusRing,
+  getSubnetDeviceStatusLabel,
+  getSubnetDeviceStatusDot,
+} from '../utils/subnetDevices'
 import { ArrowLeft, Radar, RefreshCw, Settings, Power, Key, FolderOpen, Save, Trash2 } from 'lucide-vue-next'
 import DeviceIcon from './DeviceIcon.vue'
 import DeviceInfoPanel from './DeviceInfoPanel.vue'
@@ -20,6 +27,7 @@ const { canExecuteScans } = usePermissions()
 const toast = useToast()
 const { isScanning, startScan, endScan } = useScanState()
 const { scanProgress, setupProgressListener } = useScanProgress()
+const { btnPrimaryClass, btnDangerClass } = useButtonClasses()
 
 const subnet = ref(null)
 const devices = ref([])
@@ -32,7 +40,10 @@ const showManualCreds = ref(false)
 const shuttingDown = ref(false)
 const shutdownUser = ref('')
 const shutdownPass = ref('')
-const savedCredentials = ref([])
+const {
+  savedCredentials,
+  loadSavedCredentials,
+} = useSSHCredentials(toast)
 const selectedCredentialId = ref(null)
 let abortController = null
 
@@ -41,12 +52,6 @@ onMounted(() => {
   fetchSubnet()
   loadSavedCredentials()
 })
-
-const loadSavedCredentials = async () => {
-  try {
-    savedCredentials.value = await scannerAPI.getSSHCredentials()
-  } catch { /* ignore */ }
-}
 
 const fetchSubnet = async () => {
   loading.value = true
@@ -163,21 +168,15 @@ const DEVICE_TYPES = [
 ]
 
 const getStatusRing = (status) => {
-  if (status === 'green') return 'ring-2 ring-emerald-400/60 shadow-emerald-500/30'
-  if (status === 'red') return 'ring-2 ring-red-400/60 shadow-red-500/30'
-  return 'ring-1 ring-slate-500/30'
+  return getSubnetDeviceStatusRing(status)
 }
 
 const getStatusLabel = (status) => {
-  if (status === 'green') return 'Activo'
-  if (status === 'red') return 'Inactivo'
-  return 'Sin escanear'
+  return getSubnetDeviceStatusLabel(status)
 }
 
 const getStatusDot = (status) => {
-  if (status === 'green') return 'bg-emerald-400'
-  if (status === 'red') return 'bg-red-400'
-  return 'bg-slate-400'
+  return getSubnetDeviceStatusDot(status)
 }
 </script>
 
@@ -199,7 +198,7 @@ const getStatusDot = (status) => {
           v-if="canExecuteScans"
           @click="showShutdownForm = !showShutdownForm"
           :disabled="shuttingDown || stats.green === 0"
-          class="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 shadow-md bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white shadow-red-500/15 border border-red-400/40 disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="[btnDangerClass, 'py-2.5']"
         >
           <Power class="w-4 h-4" />
           {{ shuttingDown ? 'Apagando...' : 'Apagar Lab' }}
@@ -209,7 +208,7 @@ const getStatusDot = (status) => {
           v-if="canExecuteScans"
           @click="scanSubnet"
           :disabled="scanning || isScanning"
-          class="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 shadow-md bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-violet-500/15 border border-violet-400/40 disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="[btnPrimaryClass, 'py-2.5']"
         >
           <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': scanning }" />
           {{ scanning ? 'Escaneando...' : 'Escanear' }}
@@ -310,7 +309,7 @@ const getStatusDot = (status) => {
             <button
               @click="shutdownLabManual"
               :disabled="shuttingDown || !shutdownUser.trim() || !shutdownPass.trim()"
-              class="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition-all bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white shadow-md shadow-red-500/15 border border-red-400/40 disabled:opacity-50 disabled:cursor-not-allowed"
+              :class="[btnDangerClass]"
             >
               <Power class="w-3.5 h-3.5" :class="{ 'animate-pulse': shuttingDown }" />
               {{ shuttingDown ? 'Apagando...' : 'Apagar con estas credenciales' }}

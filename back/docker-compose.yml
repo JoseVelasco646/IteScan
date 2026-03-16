@@ -29,6 +29,8 @@ services:
       - "8000"  # Solo expuesto a nginx, no al host
     env_file:
       - .env
+    environment:
+      - JWT_SECRET=742db74ff92e1032461cf12d2a641be1317b1acb90f2e0684cdfe13146ea4825
     depends_on:
       postgres:
         condition: service_healthy

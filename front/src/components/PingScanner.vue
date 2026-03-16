@@ -1,15 +1,18 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { scannerAPI } from '../api/scanner'
 import { RefreshCw, Wifi, Activity, Network, GitBranch, X } from 'lucide-vue-next'
 import { useScanState } from '../composables/useScanState'
+import { useScanCancellation } from '../composables/useScanCancellation'
 import { useScanProgress } from '../composables/useScanProgress'
 import { useToast } from '../composables/useToast'
 import { useTheme } from '../composables/useTheme'
 import { usePermissions } from '../composables/usePermissions'
+import { useButtonClasses } from '../composables/useButtonClasses'
 import { useIPValidation } from '../composables/useIPValidation'
 import ActiveScanBanner from './ActiveScanBanner.vue'
 import NumberStepper from './NumberStepper.vue'
+import { expandIPv4Range } from '../utils/networkHosts'
 
 const { isScanning, currentScanType, startScan, endScan, externalCancelFlag } = useScanState()
 const { isDark } = useTheme()
@@ -17,8 +20,9 @@ const { canExecuteScans } = usePermissions()
 const { cancelCurrentScan } = useScanProgress()
 const toast = useToast()
 const { isValidCIDR, isValidIP, validateIPRange, getErrorMessage } = useIPValidation()
+const { btnCTAClass, btnDangerCTAClass } = useButtonClasses()
 
-// Este componente es dueño de escaneos tipo 'ping'
+
 const isMyOwnScan = computed(() => currentScanType.value === 'ping')
 const otherScanActive = computed(() => isScanning.value && !isMyOwnScan.value)
 
@@ -33,7 +37,7 @@ const loading = ref(false)
 const error = ref('')
 const scanType = ref('hosts')
 const scanCompleted = ref(false)
-const filterMode = ref('all') // 'active' = solo activas, 'all' = activas e inactivas
+const filterMode = ref('all') 
 const saving = ref(false)
 const activos = computed(() => results.value.filter((r) => r.status === 'up').length)
 const inactivos = computed(() => results.value.filter((r) => r.status !== 'up').length)
@@ -43,7 +47,20 @@ const filteredResults = computed(() => {
   }
   return results.value
 })
-let abortController = null
+const {
+  createAbortController,
+  finalizeScan,
+  cancelScan,
+} = useScanCancellation({
+  loading,
+  error,
+  endScan,
+  externalCancelFlag,
+  isMyOwnScan,
+  onCancel: () => {
+    cancelCurrentScan()
+  },
+})
 
 // noti
 const playNotificationSound = () => {
@@ -94,11 +111,11 @@ const pingHosts = async () => {
   scanCompleted.value = false
   error.value = ''
   results.value = []
-  abortController = new AbortController()
-  startScan('ping', abortController)
+  const controller = createAbortController()
+  startScan('ping', controller)
 
   try {
-    const data = await scannerAPI.pingHosts(hostList, abortController.signal, hostTimeout.value, concurrency.value)
+    const data = await scannerAPI.pingHosts(hostList, controller.signal, hostTimeout.value, concurrency.value)
     results.value = data.results || data
     scanCompleted.value = true
     playNotificationSound() 
@@ -112,9 +129,7 @@ const pingHosts = async () => {
       toast.error(error.value, 'Escáner Ping')
     }
   } finally {
-    loading.value = false
-    endScan()
-    abortController = null
+    finalizeScan()
   }
 }
 
@@ -136,11 +151,11 @@ const scanNetwork = async () => {
   scanCompleted.value = false
   error.value = ''
   results.value = []
-  abortController = new AbortController()
-  startScan('ping', abortController)
+  const controller = createAbortController()
+  startScan('ping', controller)
 
   try {
-    const data = await scannerAPI.scanNetwork(cidr.value, abortController.signal, hostTimeout.value, concurrency.value)
+    const data = await scannerAPI.scanNetwork(cidr.value, controller.signal, hostTimeout.value, concurrency.value)
     results.value = data.results || data
     scanCompleted.value = true
     playNotificationSound() 
@@ -151,9 +166,7 @@ const scanNetwork = async () => {
       error.value = err.response?.data?.detail || err.message || 'Error escaneando red'
     }
   } finally {
-    loading.value = false
-    endScan()
-    abortController = null
+    finalizeScan()
   }
 }
 
@@ -176,18 +189,12 @@ const scanRange = async () => {
   scanCompleted.value = false
   error.value = ''
   results.value = []
-  abortController = new AbortController()
-  startScan('ping', abortController)
+  const controller = createAbortController()
+  startScan('ping', controller)
 
   try {
     const startParts = rangeStart.value.split('.')
     const endParts = rangeEnd.value.split('.')
-
-    if (startParts.length !== 4 || endParts.length !== 4) {
-      error.value = 'Formato de IP inválido'
-      loading.value = false
-      return
-    }
 
     if (startParts[0] !== endParts[0] || startParts[1] !== endParts[1]) {
       error.value = 'Los dos primeros octetos deben ser iguales (e.g., 192.168.x.x)'
@@ -195,18 +202,11 @@ const scanRange = async () => {
       return
     }
 
-    const hostList = []
-    const startThird = parseInt(startParts[2])
-    const endThird = parseInt(endParts[2])
-    const startLast = parseInt(startParts[3])
-    const endLast = parseInt(endParts[3])
-
-    for (let third = startThird; third <= endThird; third++) {
-      const start = third === startThird ? startLast : 1
-      const end = third === endThird ? endLast : 254
-      for (let last = start; last <= end; last++) {
-        hostList.push(`${startParts[0]}.${startParts[1]}.${third}.${last}`)
-      }
+    const hostList = expandIPv4Range(rangeStart.value, rangeEnd.value)
+    if (hostList.length === 0) {
+      error.value = 'No se pudo generar el rango de hosts'
+      loading.value = false
+      return
     }
 
     const batchSize = 100
@@ -216,7 +216,7 @@ const scanRange = async () => {
       toast.info(`Escaneando ${hostList.length} hosts${batchSize}...`, 'Escáner Ping')
       
       for (let i = 0; i < hostList.length; i += batchSize) {
-        if (abortController?.signal.aborted) {
+        if (controller?.signal.aborted) {
           break
         }
         
@@ -227,7 +227,7 @@ const scanRange = async () => {
         toast.info(`Procesando ${batchNum}/${totalBatches} (${batch.length} hosts)`, 'Escáner Ping')
         
         try {
-          const data = await scannerAPI.pingHosts(batch, abortController.signal, hostTimeout.value, concurrency.value)
+          const data = await scannerAPI.pingHosts(batch, controller.signal, hostTimeout.value, concurrency.value)
           const batchResults = data.results || data
           allResults.push(...batchResults)
           results.value = [...allResults] 
@@ -241,7 +241,7 @@ const scanRange = async () => {
       
       results.value = allResults
     } else {
-      const data = await scannerAPI.pingHosts(hostList, abortController.signal, hostTimeout.value, concurrency.value)
+      const data = await scannerAPI.pingHosts(hostList, controller.signal, hostTimeout.value, concurrency.value)
       results.value = data.results || data
     }
     
@@ -255,9 +255,7 @@ const scanRange = async () => {
       error.value = err.response?.data?.detail || err.message || 'Error escaneando rango'
     }
   } finally {
-    loading.value = false
-    endScan()
-    abortController = null
+    finalizeScan()
   }
 }
 
@@ -270,27 +268,6 @@ const handleScan = () => {
     scanRange()
   }
 }
-
-const cancelScan = () => {
-  if (abortController) {
-    abortController.abort()
-  }
-  cancelCurrentScan()
-  error.value = 'Escaneo cancelado'
-  loading.value = false
-  endScan()
-}
-
-// Detectar cancelación externa (desde ActiveScanBanner u otro componente)
-watch(externalCancelFlag, (cancelled) => {
-  if (cancelled && isMyOwnScan.value && loading.value) {
-    if (abortController) abortController.abort()
-    cancelCurrentScan()
-    error.value = 'Escaneo cancelado'
-    loading.value = false
-    endScan()
-  }
-})
 
 const quickFillRange = (preset) => {
   const baseIP = '192.168.0'
@@ -450,8 +427,8 @@ const saveActiveResults = async () => {
 
           <!-- CONCURRENCIA -->
           <div class="mt-4">
-            <NumberStepper v-model="concurrency" :min="1" :max="100" unit="IPs"
-              label="IPs simultáneas" :presets="[10, 25, 50, 100]"
+            <NumberStepper v-model="concurrency" :min="1" :max="50" unit="IPs"
+              label="IPs simultáneas" :presets="[10, 25, 50]"
               accent-color="cyan" :show-range="true" />
           </div>
         </div>
@@ -511,8 +488,8 @@ const saveActiveResults = async () => {
 
           <!-- CONCURRENCIA -->
           <div class="mt-4">
-            <NumberStepper v-model="concurrency" :min="1" :max="200" unit="IPs"
-              label="IPs simultáneas" :presets="[10, 25, 50, 100]"
+            <NumberStepper v-model="concurrency" :min="1" :max="50" unit="IPs"
+              label="IPs simultáneas" :presets="[10, 25, 50]"
               accent-color="cyan" :show-range="true" />
           </div>
         </div>
@@ -639,29 +616,20 @@ const saveActiveResults = async () => {
         v-if="canExecuteScans"
         @click="handleScan"
         :disabled="loading || otherScanActive"
-        class="w-full group relative overflow-hidden py-6 rounded-2xl font-bold text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl"
-        :class="loading 
-          ? 'bg-slate-800 border-2 border-slate-600' 
-          : 'bg-gradient-to-r from-cyan-600 via-blue-600 to-cyan-600 hover:from-cyan-500 hover:via-blue-500 hover:to-cyan-500 border-2 border-cyan-400/50 hover:border-cyan-300 shadow-cyan-500/20 hover:shadow-cyan-400/30'"
+        :class="btnCTAClass"
       >
-        <div v-if="!loading && !otherScanActive" class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-        
-        <div class="relative z-10 flex items-center justify-center gap-3 text-white">
-          <RefreshCw :class="['w-6 h-6', loading && 'animate-spin']" />
-          <span class="tracking-wide">
-            {{ loading ? 'Escaneando Red...' : scanCompleted ? 'Escaneo Completo' : otherScanActive ? 'Otro escaneo en curso...' : 'Iniciar Escaneo Ping' }}
-          </span>
-        </div>
+        <RefreshCw :class="['w-6 h-6', loading && 'animate-spin']" />
+        <span>
+          {{ loading ? 'Escaneando Red...' : scanCompleted ? 'Escaneo Completo' : otherScanActive ? 'Otro escaneo en curso...' : 'Iniciar Escaneo Ping' }}
+        </span>
       </button>
 
       <button
         v-if="loading"
         @click="cancelScan"
-        class="w-full group relative py-4 rounded-2xl font-bold text-lg transition-all duration-300 bg-red-900/50 hover:bg-red-800/60 border-2 border-red-700 hover:border-red-600 text-white shadow-lg"
+        :class="btnDangerCTAClass"
       >
-        <div class="relative z-10 flex items-center justify-center gap-3">
-          <span>Cancelar Escaneo</span>
-        </div>
+        <span>Cancelar Escaneo</span>
       </button>
     </div>
 

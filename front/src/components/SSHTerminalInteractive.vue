@@ -29,7 +29,7 @@
           Broadcast
         </button>
         <button @click="showConnectForm = true"
-          class="btn btn-primary text-sm flex items-center gap-1.5"
+          :class="[btnPrimaryClass, 'text-sm', 'flex', 'items-center', 'gap-1.5']"
           :disabled="sessions.length >= maxSessions">
           <Plus class="w-4 h-4" />
           Nueva sesión
@@ -109,7 +109,7 @@
         </div>
         <div class="flex items-end">
           <button @click="addSession" :disabled="!canAdd || isConnecting"
-            class="w-full btn btn-primary text-sm flex items-center justify-center gap-1.5 py-2">
+            :class="[btnPrimaryClass, 'w-full', 'text-sm', 'flex', 'items-center', 'justify-center', 'gap-1.5', 'py-2']">
             <Loader2 v-if="isConnecting" class="w-4 h-4 animate-spin" />
             <TerminalIcon v-else class="w-4 h-4" />
             {{ isConnecting ? 'Conectando...' : 'Conectar' }}
@@ -134,7 +134,7 @@
           class="px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 text-sm transition-all"
           :class="inputClass" placeholder="Nombre (ej: Router principal)" @keyup.enter="saveCurrentCredentials" />
         <button @click="saveCurrentCredentials" :disabled="!saveName.trim() || !newConn.username || !newConn.password"
-          class="btn btn-primary text-xs px-3 py-1.5 disabled:opacity-40">Guardar</button>
+          :class="[btnPrimaryClass, 'text-xs', 'px-3', 'py-1.5']">Guardar</button>
         <button @click="showSaveForm = false"
           class="text-xs px-2 py-1.5 rounded-lg transition-colors"
           :class="isDark() ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'">Cancelar</button>
@@ -150,7 +150,7 @@
           :class="inputClass"
           placeholder="192.168.0.10, 192.168.0.20, 192.168.0.30 (mismas credenciales)" />
         <button @click="addBulkSessions" :disabled="!bulkHosts.trim() || !newConn.username || !newConn.password"
-          class="btn btn-secondary text-xs px-3 py-1.5">
+          :class="[btnSecondaryClass, 'text-xs', 'px-3', 'py-1.5']">
           Conectar todos
         </button>
       </div>
@@ -275,10 +275,12 @@ import { ref, computed, onBeforeUnmount, onMounted, nextTick, reactive } from 'v
 import { Terminal as TerminalIcon, Key, Info, Loader2, Plus, X, Radio, Send, Save, FolderOpen, Trash2 } from 'lucide-vue-next'
 import { useToast } from '../composables/useToast'
 import { useTheme } from '../composables/useTheme'
+import { useButtonClasses } from '../composables/useButtonClasses'
 import { scannerAPI } from '../api/scanner'
 
 const toast = useToast()
 const { isDark } = useTheme()
+const { btnPrimaryClass, btnSecondaryClass } = useButtonClasses()
 
 const maxSessions = 10
 const showConnectForm = ref(true)

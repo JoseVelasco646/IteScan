@@ -2,7 +2,7 @@
   <div class="min-h-screen p-4 md:p-6 lg:p-8" :class="isDark() ? 'bg-slate-950' : 'bg-slate-50'" role="main" aria-label="Panel de administración de usuarios">
     <div class="max-w-6xl mx-auto space-y-6">
 
-      <!-- ═══ Header ═══ -->
+      
       <div class="flex items-center justify-between flex-wrap gap-4">
         <div class="flex items-center gap-4">
           <div class="p-3 bg-gradient-to-br from-cyan-500/20 to-blue-600/20 rounded-xl border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/10">
@@ -19,17 +19,14 @@
         </div>
         <button
           @click="$router.push('/')"
-          class="px-5 py-2.5 rounded-xl font-medium text-sm transition-all flex items-center gap-2 border"
-          :class="isDark()
-            ? 'bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 border-slate-700 hover:border-slate-600'
-            : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-sm'"
+          :class="btnSecondaryClass"
         >
           <ArrowLeft class="w-4 h-4" />
           Volver al Dashboard
         </button>
       </div>
 
-      <!-- ═══ Current User Card ═══ -->
+      
       <div class="relative overflow-hidden rounded-2xl border p-5"
         :class="isDark() ? 'bg-gradient-to-r from-cyan-950/40 to-slate-800/50 border-cyan-500/30' : 'bg-gradient-to-r from-cyan-50 to-blue-50 border-cyan-200'">
         <div class="absolute top-0 right-0 w-32 h-32 opacity-5">
@@ -57,10 +54,7 @@
           </div>
           <button
             @click="showChangePassword = true"
-            class="px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 border"
-            :class="isDark()
-              ? 'bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 border-slate-700 hover:border-slate-600'
-              : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-sm'"
+            :class="btnSecondaryClass"
           >
             <KeyRound class="w-4 h-4" />
             Cambiar Contraseña
@@ -68,7 +62,7 @@
         </div>
       </div>
 
-      <!-- ═══ Create Admin Form ═══ -->
+     
       <div v-if="isSuperAdmin"
         class="rounded-2xl border overflow-hidden"
         :class="isDark() ? 'bg-slate-900/50 border-slate-700/50' : 'bg-white border-slate-200 shadow-sm'">
@@ -373,10 +367,10 @@
                       v-if="admin.id !== currentUser?.id && !admin.is_super_admin"
                       @click="toggleActive(admin)"
                       :disabled="loading"
-                      class="p-2 rounded-lg transition-all disabled:opacity-50 group"
-                      :class="admin.is_active
-                        ? (isDark() ? 'hover:bg-amber-500/15 text-slate-500 hover:text-amber-400' : 'hover:bg-amber-50 text-slate-400 hover:text-amber-600')
-                        : (isDark() ? 'hover:bg-emerald-500/15 text-slate-500 hover:text-emerald-400' : 'hover:bg-emerald-50 text-slate-400 hover:text-emerald-600')"
+                      :class="[
+                        btnIconBaseClass,
+                        admin.is_active ? getIconToneClass('amber', loading) : getIconToneClass('green', loading)
+                      ]"
                       :title="admin.is_active ? 'Desactivar' : 'Activar'"
                     >
                       <UserX v-if="admin.is_active" class="w-4 h-4" />
@@ -386,8 +380,7 @@
                       v-if="admin.id !== currentUser?.id && !(admin.is_super_admin && !isSuperAdmin)"
                       @click="openResetPassword(admin)"
                       :disabled="loading"
-                      class="p-2 rounded-lg transition-all disabled:opacity-50"
-                      :class="isDark() ? 'hover:bg-blue-500/15 text-slate-500 hover:text-blue-400' : 'hover:bg-blue-50 text-slate-400 hover:text-blue-600'"
+                      :class="[btnIconBaseClass, getIconToneClass('blue', loading)]"
                       title="Restablecer contraseña"
                     >
                       <KeyRound class="w-4 h-4" />
@@ -396,8 +389,7 @@
                       v-if="admin.id !== currentUser?.id && isSuperAdmin && !admin.is_super_admin"
                       @click="openDeleteModal(admin)"
                       :disabled="loading"
-                      class="p-2 rounded-lg transition-all disabled:opacity-50"
-                      :class="isDark() ? 'hover:bg-red-500/15 text-slate-500 hover:text-red-400' : 'hover:bg-red-50 text-slate-400 hover:text-red-600'"
+                      :class="[btnIconBaseClass, getIconToneClass('red', loading)]"
                       title="Eliminar"
                     >
                       <Trash2 class="w-4 h-4" />
@@ -492,13 +484,12 @@
             <div class="px-6 py-4 border-t flex gap-3"
               :class="isDark() ? 'bg-slate-800/40 border-slate-700/50' : 'bg-gradient-to-r from-cyan-50 to-blue-50 border-cyan-200'">
               <button @click="showChangePassword = false"
-                class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border"
-                :class="isDark() ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'">
+                :class="btnModalCancelClass">
                 Cancelar
               </button>
               <button @click="changePassword"
                 :disabled="loading || !passwordChange.current || !passwordChange.new_password"
-                class="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-40 text-white bg-gradient-to-r from-cyan-500 to-blue-500 shadow-lg shadow-cyan-500/20">
+                :class="btnModalSubmitClass">
                 {{ loading ? 'Guardando...' : 'Guardar' }}
               </button>
             </div>
@@ -570,13 +561,12 @@
             <div class="px-6 py-4 border-t flex gap-3"
               :class="isDark() ? 'bg-slate-800/40 border-slate-700/50' : 'bg-gradient-to-r from-cyan-50 to-blue-50 border-cyan-200'">
               <button @click="showResetPassword = false"
-                class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border"
-                :class="isDark() ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'">
+                :class="btnModalCancelClass">
                 Cancelar
               </button>
               <button @click="resetPassword"
                 :disabled="loading || !resetNewPassword"
-                class="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-40 text-white bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 shadow-lg shadow-blue-500/20">
+                :class="btnModalSubmitClass">
                 {{ loading ? 'Guardando...' : 'Restablecer' }}
               </button>
             </div>
@@ -620,12 +610,11 @@
               </div>
               <div class="flex gap-3">
                 <button @click="showDeleteModal = false" :disabled="loading"
-                  class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border"
-                  :class="isDark() ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'">
+                  :class="btnModalCancelClass">
                   Cancelar
                 </button>
                 <button @click="confirmDelete" :disabled="loading"
-                  class="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-40 text-white bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-400 hover:to-rose-400 shadow-lg shadow-red-500/20 flex items-center justify-center gap-2">
+                  :class="[getConfirmButtonClass('danger'), 'flex items-center justify-center gap-2']">
                   <Trash2 class="w-4 h-4" />
                   {{ loading ? 'Eliminando...' : 'Eliminar' }}
                 </button>
@@ -642,6 +631,17 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useTheme } from '@/composables/useTheme'
 import { usePermissions } from '@/composables/usePermissions'
+import { useButtonClasses } from '@/composables/useButtonClasses'
+import {
+  ROLE_OPTIONS,
+  getPasswordRules,
+  getPasswordStrength,
+  formatAdminDate,
+  getRoleLabel as resolveRoleLabel,
+  getRoleIcon as resolveRoleIcon,
+  getRoleBadgeClass as resolveRoleBadgeClass,
+  getRoleSelectClass as resolveRoleSelectClass,
+} from '@/utils/adminPanelUtils'
 import ToastNotification from './ToastNotification.vue'
 import {
   Users, ArrowLeft, UserCheck, UserPlus, UserX, User,
@@ -651,6 +651,14 @@ import {
 
 const { isDark } = useTheme()
 const { isSuperAdmin } = usePermissions()
+const {
+  btnSecondaryClass,
+  btnIconBaseClass,
+  btnModalCancelClass,
+  btnModalSubmitClass,
+  getIconToneClass,
+  getConfirmButtonClass,
+} = useButtonClasses()
 const API_URL = import.meta.env.VITE_API_URL || window.location.origin.replace(':3000', ':8000')
 
 const admins = ref([])
@@ -674,29 +682,10 @@ const openRoleDropdown = ref(null)
 
 const toast = ref({ show: false, message: '', type: 'success' })
 
-const getPasswordRules = (password) => {
-  if (!password) return []
-  return [
-    { label: 'Al menos 8 caracteres', ok: password.length >= 8 },
-    { label: 'Una letra mayúscula', ok: /[A-Z]/.test(password) },
-    { label: 'Una letra minúscula', ok: /[a-z]/.test(password) },
-    { label: 'Un número', ok: /\d/.test(password) }
-  ]
-}
-
-const passwordStrength = (password) => {
-  if (!password) return 0
-  const rules = getPasswordRules(password)
-  return rules.filter(r => r.ok).length
-}
+const passwordStrength = (password) => getPasswordStrength(password)
 
 // Role definitions for cards
-const roleOptions = [
-  { value: 'viewer', label: 'Visor', desc: 'Solo lectura', icon: Eye, hex: '#64748b', rgba: 'rgba(100,116,139,0.15)', borderActive: 'slate-400' },
-  { value: 'op', label: 'Operador', desc: 'Ejecutar escaneos', icon: Zap, hex: '#f59e0b', rgba: 'rgba(245,158,11,0.15)', borderActive: 'amber-400' },
-  { value: 'mod', label: 'Moderador', desc: 'Editar y administrar', icon: Pencil, hex: '#3b82f6', rgba: 'rgba(59,130,246,0.15)', borderActive: 'blue-400' },
-  { value: 'admin', label: 'Admin', desc: 'Acceso completo', icon: Shield, hex: '#a855f7', rgba: 'rgba(168,85,247,0.15)', borderActive: 'purple-400' }
-]
+const roleOptions = ROLE_OPTIONS
 
 const modalInputClass = computed(() =>
   isDark()
@@ -733,13 +722,7 @@ const showToast = (message, type = 'success') => {
 }
 
 const formatDate = (dateStr) => {
-  if (!dateStr) return 'N/A'
-  try {
-    return new Date(dateStr).toLocaleString('es-ES', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit'
-    })
-  } catch { return dateStr }
+  return formatAdminDate(dateStr)
 }
 
 const loadCurrentUser = () => {
@@ -841,31 +824,19 @@ const confirmDelete = async () => {
 }
 
 const getRoleLabel = (role) => {
-  return { admin: 'Admin', mod: 'Moderador', op: 'Operador', viewer: 'Visor' }[role] || 'Visor'
+  return resolveRoleLabel(role)
 }
 
 const getRoleIcon = (role) => {
-  return { admin: Shield, mod: Pencil, op: Zap, viewer: Eye }[role] || Eye
+  return resolveRoleIcon(role)
 }
 
 const getRoleBadgeClass = (role) => {
-  const d = isDark()
-  return {
-    admin: d ? 'bg-purple-500/15 text-purple-400' : 'bg-purple-50 text-purple-700',
-    mod: d ? 'bg-blue-500/15 text-blue-400' : 'bg-blue-50 text-blue-700',
-    op: d ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-50 text-amber-700',
-    viewer: d ? 'bg-slate-700/60 text-slate-400' : 'bg-slate-100 text-slate-600'
-  }[role] || (d ? 'bg-slate-700/60 text-slate-400' : 'bg-slate-100 text-slate-600')
+  return resolveRoleBadgeClass(role, isDark())
 }
 
 const getRoleSelectClass = (role) => {
-  const d = isDark()
-  return {
-    admin: d ? 'bg-purple-500/15 text-purple-300 border-purple-500/30' : 'bg-purple-50 text-purple-700 border-purple-200',
-    mod: d ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' : 'bg-blue-50 text-blue-700 border-blue-200',
-    op: d ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-amber-50 text-amber-700 border-amber-200',
-    viewer: d ? 'bg-slate-700/60 text-slate-300 border-slate-600' : 'bg-slate-100 text-slate-700 border-slate-200'
-  }[role] || (d ? 'bg-slate-700/60 text-slate-300 border-slate-600' : 'bg-slate-100 text-slate-700 border-slate-200')
+  return resolveRoleSelectClass(role, isDark())
 }
 
 const toggleRoleDropdown = (adminId) => {

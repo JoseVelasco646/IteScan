@@ -4,12 +4,17 @@ import { scannerAPI } from '../api/scanner'
 import { useTheme } from '../composables/useTheme'
 import { usePermissions } from '../composables/usePermissions'
 import { useToast } from '../composables/useToast'
+import { useIPValidation } from '../composables/useIPValidation'
+import { useButtonClasses } from '../composables/useButtonClasses'
 import { Network, Plus, Trash2, ChevronRight, Map, Wifi, WifiOff, HelpCircle, AlertTriangle } from 'lucide-vue-next'
 import SubnetLab from './SubnetLab.vue'
+import { ipv4ToNumber } from '../utils/networkHosts'
 
 const { isDark } = useTheme()
 const { canExecuteScans } = usePermissions()
 const toast = useToast()
+const { isValidIPv4 } = useIPValidation()
+const { btnPrimaryClass, btnSecondaryClass, btnCTAClass, btnDangerClass } = useButtonClasses()
 
 const subnets = ref([])
 const loading = ref(false)
@@ -38,21 +43,9 @@ const fetchSubnets = async () => {
 
 onMounted(fetchSubnets)
 
-// Validate an IPv4 address string, returns null if valid or error message
 const validateIp = (ip) => {
-  const parts = ip.split('.')
-  if (parts.length !== 4) return `IP inválida: ${ip} (debe tener 4 octetos)`
-  for (const p of parts) {
-    const n = Number(p)
-    if (!/^\d{1,3}$/.test(p) || n < 0 || n > 255) return `IP inválida: ${ip} (octeto "${p}" fuera de rango 0-255)`
-  }
-  return null
-}
-
-// Convert IP string to numeric value for comparison
-const ipToNum = (ip) => {
-  const parts = ip.split('.').map(Number)
-  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0
+  if (isValidIPv4(ip)) return null
+  return `IP inválida: ${ip} (formato esperado x.x.x.x en rango 0-255)`
 }
 
 const createSubnet = async () => {
@@ -71,7 +64,7 @@ const createSubnet = async () => {
   if (endErr) { toast.error(endErr, 'IP Fin'); return }
 
   // Validate range order
-  if (ipToNum(endIp) < ipToNum(startIp)) {
+  if (ipv4ToNumber(endIp) < ipv4ToNumber(startIp)) {
     toast.error(`La IP final (${endIp}) no puede ser menor que la IP inicial (${startIp})`, 'Rango inválido')
     return
   }
@@ -132,7 +125,7 @@ const goBack = () => {
 </script>
 
 <template>
-  <div class="space-y-8">
+  <div class="space-y-3">
     <!-- If a subnet is selected, show detail view -->
     <SubnetLab v-if="selectedSubnetId" :subnetId="selectedSubnetId" @back="goBack" />
 
@@ -140,7 +133,7 @@ const goBack = () => {
     <template v-else>
       <!-- Header -->
       <div 
-        class="relative rounded-3xl p-7 shadow-2xl overflow-hidden"
+        class="relative rounded-3xl p-6 shadow-2xl overflow-hidden"
         :class="isDark() ? 'bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-slate-700/50' : 'bg-gradient-to-br from-white via-slate-50 to-white border border-slate-200'"
       >
         <div class="absolute inset-0 opacity-5">
@@ -148,19 +141,19 @@ const goBack = () => {
           <div class="absolute bottom-0 right-0 w-96 h-96 bg-indigo-500 rounded-full blur-3xl"></div>
         </div>
         <div class="relative z-10">
-          <div class="flex items-center gap-4 mb-3">
+          <div class="flex items-center gap-4">
             <div class="w-14 h-14 bg-gradient-to-br from-violet-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-violet-500/30">
               <Network class="w-7 h-7 text-white" />
             </div>
             <div>
               <h2 
-                class="text-3xl font-extrabold mb-2 tracking-tight"
+                class="text-3xl font-extrabold mb-1 tracking-tight"
                 :class="isDark() ? 'text-white' : 'text-slate-800'"
               >
                 Subnet <span class="text-violet-400">Labs</span>
               </h2>
               <p 
-                class="font-tagesschrift text-lg font-semibold mb-2 tracking-wide"
+                class="font-tagesschrift text-lg font-semibold tracking-wide"
                 :class="isDark() ? 'text-gray-200' : 'text-slate-600'"
               >Gestión de subredes y laboratorios</p>
             </div>
@@ -172,10 +165,7 @@ const goBack = () => {
       <div v-if="canExecuteScans" class="flex justify-end">
         <button
           @click="showCreateForm = !showCreateForm"
-          class="flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-all duration-300 shadow-lg"
-          :class="showCreateForm 
-            ? (isDark() ? 'bg-slate-800 text-slate-300 border border-slate-600' : 'bg-slate-200 text-slate-600 border border-slate-300')
-            : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-violet-500/20 hover:shadow-violet-400/30 border-2 border-violet-400/50'"
+          :class="[showCreateForm ? btnSecondaryClass : btnPrimaryClass, 'px-6', 'py-3', 'text-sm']"
         >
           <Plus class="w-5 h-5" />
           {{ showCreateForm ? 'Cancelar' : 'Nueva Subred' }}
@@ -233,7 +223,7 @@ const goBack = () => {
           <button
             @click="createSubnet"
             :disabled="creating"
-            class="w-full py-4 rounded-2xl font-bold text-lg transition-all duration-300 shadow-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-600 hover:from-violet-500 hover:via-indigo-500 hover:to-violet-500 text-white border-2 border-violet-400/50 hover:border-violet-300 shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            :class="btnCTAClass"
           >
             <span class="flex items-center justify-center gap-2">
               <Plus class="w-5 h-5" />
@@ -368,14 +358,13 @@ const goBack = () => {
               <div class="flex gap-3 w-full">
                 <button
                   @click="cancelDelete"
-                  class="flex-1 py-3 rounded-2xl font-bold text-sm transition-all"
-                  :class="isDark() ? 'bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200'"
+                  :class="[btnSecondaryClass, 'flex-1', 'py-3', 'text-sm', 'justify-center']"
                 >
                   Cancelar
                 </button>
                 <button
                   @click="confirmDeleteAction"
-                  class="flex-1 py-3 rounded-2xl font-bold text-sm transition-all bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white shadow-lg shadow-red-500/20 border border-red-400/50"
+                  :class="[btnDangerClass, 'flex-1', 'py-3', 'text-sm', 'justify-center']"
                 >
                   Eliminar
                 </button>

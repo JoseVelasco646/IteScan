@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, ConnectionHistory
@@ -88,13 +88,18 @@ class SchedulerService:
     async def _cleanup_old_history(self):
         db = SessionLocal()
         try:
-            cutoff = datetime.utcnow() - timedelta(days=HISTORY_RETENTION_DAYS)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=HISTORY_RETENTION_DAYS)
             deleted_conn = db.query(ConnectionHistory).filter(
                 ConnectionHistory.timestamp < cutoff
             ).delete(synchronize_session="fetch")
             deleted_audit = db.query(AuditLog).filter(
                 AuditLog.created_at < cutoff
             ).delete(synchronize_session="fetch")
+
+            # Limpiar intentos de login antiguos
+            from app.auth import cleanup_old_login_attempts
+            cleanup_old_login_attempts(db)
+
             db.commit()
             if deleted_conn or deleted_audit:
                 logger.info(

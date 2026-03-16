@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { scannerAPI } from '@/api/scanner'
 import { useTheme } from '@/composables/useTheme'
 import { useGlobalWebSocket } from '@/composables/useWebSocket'
+import { formatDateTime, formatDurationCompact } from '@/utils/dateTime'
 import { 
   Monitor, Wifi, WifiOff, HelpCircle, Shield, Server, 
   AlertTriangle, Activity, Clock, Calendar, RefreshCw,
@@ -57,19 +58,11 @@ const hostPercent = computed(() => {
 })
 
 const formatDate = (str) => {
-  if (!str) return 'N/A'
-  try {
-    return new Date(str).toLocaleString('es-MX', { 
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-    })
-  } catch { return str }
+  return formatDateTime(str, { locale: 'es-MX', fallback: 'N/A', shortMonth: true })
 }
 
 const formatDuration = (seconds) => {
-  if (!seconds) return '-'
-  if (seconds < 60) return `${Math.round(seconds)}s`
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`
-  return `${Math.round(seconds / 3600)}h ${Math.round((seconds % 3600) / 60)}m`
+  return formatDurationCompact(seconds, '-')
 }
 
 const cardClasses = computed(() => {

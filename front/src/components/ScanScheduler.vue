@@ -41,7 +41,7 @@
       <button
         v-if="canManageSchedulers"
         @click="showScheduleModal = true"
-        class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 flex items-center gap-2"
+        :class="btnPrimaryClass"
         aria-label="Crear nuevo escaneo programado"
       >
         <Plus class="w-5 h-5" />
@@ -93,7 +93,8 @@
       <button
         v-if="canManageSchedulers"
         @click="showScheduleModal = true"
-        class="mt-4 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-cyan-500/30 transition-all duration-300 inline-flex items-center gap-2"
+        class="mt-4"
+        :class="btnPrimaryClass"
       >
         <Plus class="w-4 h-4" />
         Crear Schedule
@@ -211,10 +212,7 @@
             <button
               v-if="schedule.last_run"
               @click="viewResults(schedule.id)"
-              class="p-2 rounded-lg transition-all duration-200 flex items-center gap-1 group/btn"
-              :class="hasResults(schedule.id) 
-                ? (isDark() ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-50 text-purple-600 hover:bg-purple-100')
-                : (isDark() ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed')"
+              :class="[btnIconBaseClass, getIconToneClass('purple', !hasResults(schedule.id))]"
               :title="hasResults(schedule.id) ? 'Ver resultados' : 'Sin resultados'"
               :disabled="!hasResults(schedule.id)"
             >
@@ -223,8 +221,7 @@
             <button
               v-if="canRunSchedulers"
               @click="runScheduleNow(schedule.id)"
-              class="p-2 rounded-lg transition-all duration-200"
-              :class="isDark() ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30' : 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100'"
+              :class="[btnIconBaseClass, getIconToneClass('cyan')]"
               title="Ejecutar ahora"
             >
               <Play class="w-4 h-4" />
@@ -232,12 +229,7 @@
             <button
               v-if="canManageSchedulers"
               @click="toggleSchedule(schedule.id)"
-              class="p-2 rounded-lg transition-all duration-200"
-              :class="
-                schedule.enabled
-                  ? (isDark() ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-green-50 text-green-600 hover:bg-green-100')
-                  : (isDark() ? 'bg-slate-700/50 text-slate-400 hover:bg-slate-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200')
-              "
+              :class="[btnIconBaseClass, schedule.enabled ? getIconToneClass('green') : getIconToneClass('slate')]"
               :title="schedule.enabled ? 'Desactivar' : 'Activar'"
             >
               <Power class="w-4 h-4" />
@@ -245,8 +237,7 @@
             <button
               v-if="canManageSchedulers"
               @click="editSchedule(schedule)"
-              class="p-2 rounded-lg transition-all duration-200"
-              :class="isDark() ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'"
+              :class="[btnIconBaseClass, getIconToneClass('blue')]"
               title="Editar"
             >
               <Edit class="w-4 h-4" />
@@ -254,8 +245,7 @@
             <button
               v-if="canManageSchedulers"
               @click="deleteSchedule(schedule.id, schedule.name)"
-              class="p-2 rounded-lg transition-all duration-200"
-              :class="isDark() ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-50 text-red-600 hover:bg-red-100'"
+              :class="[btnIconBaseClass, getIconToneClass('red')]"
               title="Eliminar"
             >
               <Trash2 class="w-4 h-4" />
@@ -294,10 +284,7 @@
         </div>
         <button
           @click="loadHistory"
-          class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1.5"
-          :class="isDark() 
-            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500/30' 
-            : 'bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100'"
+          :class="btnSecondaryClass"
         >
           <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': loadingHistory }" />
           Actualizar
@@ -453,10 +440,17 @@
             <div class="flex items-center justify-between">
               <span class="text-[11px] font-mono" :class="isDark() ? 'text-slate-500' : 'text-slate-400'">{{ formatTimestamp(entry.executed_at) }}</span>
               <div class="flex gap-1">
-                <button @click="viewHistoryDetail(entry.id)" class="p-1.5 rounded-lg" :class="isDark() ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-50 text-cyan-600'">
+                <button
+                  @click="viewHistoryDetail(entry.id)"
+                  :class="[btnIconBaseClass, getIconToneClass('cyan')]"
+                >
                   <Search class="w-3.5 h-3.5" />
                 </button>
-                <button v-if="canDeleteResources" @click="deleteHistory(entry.id)" class="p-1.5 rounded-lg" :class="isDark() ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-600'">
+                <button
+                  v-if="canDeleteResources"
+                  @click="deleteHistory(entry.id)"
+                  :class="[btnIconBaseClass, getIconToneClass('red')]"
+                >
                   <Trash2 class="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -473,20 +467,14 @@
             <button
               @click="historyPage > 0 && (historyPage--, loadHistory())"
               :disabled="historyPage === 0"
-              class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
-              :class="historyPage === 0 
-                ? (isDark() ? 'bg-slate-700/30 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed')
-                : (isDark() ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-200 text-slate-700 hover:bg-slate-300')"
+              :class="getPaginationButtonClass(historyPage === 0)"
             >
               Anterior
             </button>
             <button
               @click="(historyPage + 1) * historyLimit < historyTotal && (historyPage++, loadHistory())"
               :disabled="(historyPage + 1) * historyLimit >= historyTotal"
-              class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
-              :class="(historyPage + 1) * historyLimit >= historyTotal 
-                ? (isDark() ? 'bg-slate-700/30 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed')
-                : (isDark() ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-200 text-slate-700 hover:bg-slate-300')"
+              :class="getPaginationButtonClass((historyPage + 1) * historyLimit >= historyTotal)"
             >
               Siguiente
             </button>
@@ -1021,12 +1009,11 @@
               </label>
               <div class="flex gap-2">
                 <button type="button" @click="closeModal"
-                  class="px-4 py-2 rounded-lg text-xs font-semibold transition-all"
-                  :class="isDark() ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'">
+                  :class="btnSecondaryClass">
                   Cancelar
                 </button>
                 <button type="submit"
-                  class="px-5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg text-xs font-bold hover:shadow-lg hover:shadow-cyan-500/30 transition-all">
+                  :class="btnPrimaryClass">
                   {{ editingSchedule ? "Actualizar" : "Crear" }}
                 </button>
               </div>
@@ -1327,8 +1314,9 @@
           <div class="flex gap-3">
             <button
               @click="showConfirmModal = false"
-              class="flex-1 px-4 py-3 rounded-xl font-semibold transition-colors duration-200"
-              :class="isDark() ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'"
+              :class="isDark()
+                ? 'flex-1 px-4 py-3 rounded-xl font-semibold border border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 transition-all duration-200'
+                : 'flex-1 px-4 py-3 rounded-xl font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-all duration-200'"
             >
               {{ confirmModalData.cancelText }}
             </button>
@@ -1339,12 +1327,7 @@
                   showConfirmModal = false;
                 }
               "
-              :class="[
-                'flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-200',
-                confirmModalData.type === 'danger'
-                  ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/30'
-                  : 'bg-yellow-600 hover:bg-yellow-700 text-white shadow-lg shadow-yellow-500/30',
-              ]"
+              :class="getConfirmButtonClass(confirmModalData.type)"
             >
               {{ confirmModalData.confirmText }}
             </button>
@@ -1433,7 +1416,9 @@
 
           <button
             @click="showResultModal = false"
-            class="w-full px-4 py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-semibold transition-colors duration-200"
+            :class="isDark()
+              ? 'w-full px-4 py-3 rounded-xl font-semibold border border-cyan-400/40 bg-cyan-600 hover:bg-cyan-500 text-white transition-all duration-200'
+              : 'w-full px-4 py-3 rounded-xl font-semibold border border-cyan-500/30 bg-cyan-600 hover:bg-cyan-700 text-white transition-all duration-200'"
           >
             Cerrar
           </button>
@@ -1472,11 +1457,29 @@ import { scannerAPI } from "../api/scanner";
 import { useGlobalWebSocket } from "../composables/useWebSocket";
 import { useTheme } from "../composables/useTheme";
 import { usePermissions } from "../composables/usePermissions";
+import { useButtonClasses } from "../composables/useButtonClasses";
+import {
+  getCurrentTimeHHMM,
+  getScheduleScanTypeIcon,
+  getScheduleScanTypeName,
+  getScheduleScanTypeColor,
+  getScheduleDescription as getScheduleDescriptionText,
+  formatScheduleDateTime,
+} from "../utils/schedulerUtils";
+import { formatDurationCompact } from "../utils/dateTime";
 
 const toast = useToast();
 const ws = useGlobalWebSocket();
 const { isDark } = useTheme();
 const { canManageSchedulers, canRunSchedulers, canDeleteResources } = usePermissions();
+const {
+  btnPrimaryClass,
+  btnSecondaryClass,
+  btnIconBaseClass,
+  getPaginationButtonClass,
+  getConfirmButtonClass,
+  getIconToneClass,
+} = useButtonClasses();
 
 const schedules = ref([]);
 const loading = ref(false);
@@ -1526,10 +1529,7 @@ const historyDetail = ref(null);
 
 // Obtener hora local actual en formato HH:MM
 const getCurrentTime = () => {
-  const now = new Date();
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
+  return getCurrentTimeHHMM();
 };
 
 // Custom time picker state
@@ -1594,49 +1594,19 @@ const formData = ref({
 });
 
 const getScanTypeIcon = (type) => {
-  const icons = {
-    ping: Wifi,
-    ports: Server,
-    services: Server,
-    os: Monitor,
-    mac: Search,
-    full: Database,
-  };
-  return icons[type] || Database;
+  return getScheduleScanTypeIcon(type);
 };
 
 const getScanTypeName = (type) => {
-  const names = {
-    ping: "Ping",
-    ports: "Puertos",
-    services: "Servicios",
-    os: "Detección de SO",
-    mac: "Dirección MAC",
-    full: "Escaneo Completo",
-  };
-  return names[type] || type;
+  return getScheduleScanTypeName(type);
 };
 
 const getScanTypeColor = (type) => {
-  const colors = {
-    ping: "bg-cyan-500/20 text-cyan-400",
-    ports: "bg-blue-500/20 text-blue-400",
-    services: "bg-purple-500/20 text-purple-400",
-    os: "bg-green-500/20 text-green-400",
-    mac: "bg-yellow-500/20 text-yellow-400",
-    full: "bg-red-500/20 text-red-400",
-  };
-  return colors[type] || "bg-slate-500/20 text-slate-400";
+  return getScheduleScanTypeColor(type);
 };
 
 const getScheduleDescription = (schedule) => {
-  const descriptions = {
-    hourly: "Cada hora",
-    daily: `Diario a las ${schedule.time}`,
-    weekly: `Semanal (${getDayName(schedule.day_of_week)}) a las ${schedule.time}`,
-    monthly: `Mensual (día ${schedule.day_of_month}) a las ${schedule.time}`,
-  };
-  return descriptions[schedule.frequency] || schedule.frequency;
+  return getScheduleDescriptionText(schedule);
 };
 
 const getDayName = (day) => {
@@ -1653,13 +1623,7 @@ const getDayName = (day) => {
 };
 
 const formatNextRun = (date) => {
-  return new Date(date).toLocaleString("es-ES", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatScheduleDateTime(date);
 };
 
 // Verificar si hay resultados disponibles para un schedule
@@ -1669,7 +1633,7 @@ const hasResults = (scheduleId) => {
   return schedule && schedule.last_run;
 };
 
-// ==================== API CALLS ====================
+
 
 const loadSchedules = async (showToast = true) => {
   // No mostrar loading en actualizaciones automáticas
@@ -1916,18 +1880,10 @@ const closeResultsModal = () => {
 };
 
 const formatTimestamp = (timestamp) => {
-  if (!timestamp) return "N/A";
-  return new Date(timestamp).toLocaleString("es-ES", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  return formatScheduleDateTime(timestamp);
 };
 
-// ==================== HISTORY FUNCTIONS ====================
+
 
 const loadHistory = async () => {
   loadingHistory.value = true;
@@ -1978,14 +1934,7 @@ const deleteHistory = async (historyId) => {
 };
 
 const formatDuration = (seconds) => {
-  if (!seconds && seconds !== 0) return "—";
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.round(seconds % 60);
-  if (mins < 60) return `${mins}m ${secs}s`;
-  const hours = Math.floor(mins / 60);
-  const remainMins = mins % 60;
-  return `${hours}h ${remainMins}m`;
+  return formatDurationCompact(seconds, "—");
 };
 
 // Cargar schedules al montar el componente

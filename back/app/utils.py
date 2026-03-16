@@ -2,7 +2,7 @@ import os
 import logging
 import json
 from logging.handlers import RotatingFileHandler
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from fastapi import Request
@@ -20,7 +20,7 @@ ENV_FILE_PATH = os.path.join(os.path.dirname(__file__), '..', '.env')
 class JSONFormatter(logging.Formatter):
     def format(self, record):
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

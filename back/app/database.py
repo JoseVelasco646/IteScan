@@ -2,7 +2,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.dialects.postgresql import INET
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 
 DATABASE_URL = os.getenv(
@@ -36,8 +36,8 @@ class Host(Base):
     status = Column(String(20), default="unknown")
     latency_ms = Column(Float)
     last_seen = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relaciones
     ports = relationship("Port", back_populates="host", cascade="all, delete-orphan")
@@ -55,7 +55,7 @@ class Port(Base):
     protocol = Column(String(10))
     service = Column(String(100))
     state = Column(String(20))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     host = relationship("Host", back_populates="ports")
 
@@ -71,8 +71,8 @@ class Service(Base):
     product = Column(String(255))
     version = Column(String(100))
     extra_info = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     host = relationship("Host", back_populates="services")
 
@@ -87,7 +87,7 @@ class Vulnerability(Base):
     severity = Column(String(20))
     description = Column(Text)
     output = Column(Text)
-    discovered_at = Column(DateTime, default=datetime.utcnow)
+    discovered_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     host = relationship("Host", back_populates="vulnerabilities")
 
@@ -99,7 +99,7 @@ class ConnectionHistory(Base):
     host_id = Column(Integer, ForeignKey("hosts.id", ondelete="CASCADE"))
     status = Column(String(20))
     latency_ms = Column(Float)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     host = relationship("Host", back_populates="connection_history")
 
