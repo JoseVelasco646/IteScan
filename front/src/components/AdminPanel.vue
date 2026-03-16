@@ -67,7 +67,7 @@
         class="rounded-2xl border overflow-hidden"
         :class="isDark() ? 'bg-slate-900/50 border-slate-700/50' : 'bg-white border-slate-200 shadow-sm'">
         
-        <!-- Form header -->
+        
         <div class="px-6 py-4 border-b flex items-center gap-3"
           :class="isDark() ? 'bg-slate-800/40 border-slate-700/50' : 'bg-gradient-to-r from-cyan-50 to-blue-50 border-cyan-200'">
           <UserPlus class="w-5 h-5 text-emerald-400" />
