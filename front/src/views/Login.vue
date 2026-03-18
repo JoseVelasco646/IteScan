@@ -349,6 +349,7 @@ const handleLogin = async () => {
         tempToken.value = data.token
         showForceChange.value = true
       } else {
+        sessionStorage.removeItem('manual_logout')
         localStorage.setItem('admin_token', data.token)
         localStorage.setItem('admin_user', JSON.stringify(data.user))
         reconnectGlobalWebSocket()
@@ -398,6 +399,7 @@ const handleForceChangePassword = async () => {
     const data = await response.json()
 
     if (response.ok) {
+      sessionStorage.removeItem('manual_logout')
       localStorage.setItem('admin_token', data.token)
       localStorage.setItem('admin_user', JSON.stringify(data.user))
       reconnectGlobalWebSocket()

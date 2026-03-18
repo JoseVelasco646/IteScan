@@ -75,6 +75,12 @@ api.interceptors.response.use(
   },
   async (error) => {
     if (error.response && error.response.status === 401) {
+      const isManualLogout = sessionStorage.getItem('manual_logout') === '1'
+
+      if (isManualLogout) {
+        return Promise.reject(error)
+      }
+
       localStorage.removeItem('admin_token')
       localStorage.removeItem('admin_user')
       

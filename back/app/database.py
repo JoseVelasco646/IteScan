@@ -7,7 +7,7 @@ import os
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://scanner:scanner123@192.168.0.11:5432/network_scanner"
+    "postgresql://scanner:scanner123@192.168.0.12:5432/network_scanner"
 )
 
 engine = create_engine(

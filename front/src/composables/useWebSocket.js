@@ -1,6 +1,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
-const WS_BASE = 'ws://192.168.0.11:8000/ws'
+const WS_BASE = 'ws://192.168.0.12:8000/ws'
 const RECONNECT_DELAY = 3000 
 const MAX_RECONNECT_ATTEMPTS = 5
 

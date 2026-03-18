@@ -58,10 +58,13 @@ const router = createRouter({
   ],
 })
 
-// Guard de autenticación - JWT se decodifica localmente, 
-// solo se valida con el servidor al boot o periódicamente
+
 router.beforeEach(async (to, from, next) => {
   if (to.meta.public) {
+    // Limpiar el flag de logout manual cuando se accede a login
+    if (to.name === 'login') {
+      sessionStorage.removeItem('manual_logout')
+    }
     const token = localStorage.getItem('admin_token')
     if (token && to.name === 'login' && isTokenValid(token)) {
       return next({ name: 'dashboard' })
@@ -79,8 +82,16 @@ router.beforeEach(async (to, from, next) => {
     if (!isTokenValid(token)) {
       localStorage.removeItem('admin_token')
       localStorage.removeItem('admin_user')
-      window.dispatchEvent(new CustomEvent('session-expired'))
-      return next({ name: 'login', query: { redirect: to.fullPath, expired: '1' } })
+      const isManualLogout = sessionStorage.getItem('manual_logout') === '1'
+      if (!isManualLogout) {
+        // Disparar evento session-expired solo si no fue logout manual
+        // y dar tiempo a que se procese antes de ir a login
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('session-expired'))
+        }, 0)
+        return next({ name: 'login', query: { redirect: to.fullPath, expired: '1' } })
+      }
+      return next({ name: 'login', query: { redirect: to.fullPath } })
     }
 
     // Verificar rol si la ruta lo requiere

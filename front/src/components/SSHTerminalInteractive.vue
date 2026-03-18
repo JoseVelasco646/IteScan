@@ -363,7 +363,7 @@ const canAdd = computed(() =>
   newConn.value.host && newConn.value.username && newConn.value.password
 )
 
-const getApiBaseUrl = () => '192.168.0.11:8000'
+const getApiBaseUrl = () => '192.168.0.12:8000'
 
 const setTermRef = (id, el) => {
   if (el) termRefs[id] = el

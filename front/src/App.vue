@@ -58,6 +58,9 @@ const checkAuth = async () => {
   } catch (err) {
     const status = err?.response?.status
     if (status === 401 || status === 403) {
+      if (sessionStorage.getItem('manual_logout') === '1') {
+        return
+      }
       logout(true)
     }
   }
@@ -66,6 +69,12 @@ const checkAuth = async () => {
 }
 
 const logout = (forced = false, reason = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.') => {
+  if (!forced) {
+    sessionStorage.setItem('manual_logout', '1')
+  } else {
+    sessionStorage.removeItem('manual_logout')
+  }
+
   disconnectGlobalWebSocket()
   localStorage.removeItem('admin_token')
   localStorage.removeItem('admin_user')
@@ -84,6 +93,13 @@ const logout = (forced = false, reason = 'Tu sesión ha expirado. Por favor inic
 
 // Escuchar evento de sesión expirada
 const onSessionExpired = () => {
+  // No mostrar el toast si estamos en la página de login
+  if (router.currentRoute.value.name === 'login') {
+    return
+  }
+  if (sessionStorage.getItem('manual_logout') === '1') {
+    return
+  }
   logout(true)
 }
 
@@ -395,4 +411,5 @@ const isLoginPage = computed(() => {
   opacity: 0;
   transform: rotate(90deg) scale(0.5);
 }
+
 </style>

@@ -12,7 +12,7 @@ RUN npm install
 # Copiar el resto del código
 COPY . .
 
-ARG VITE_API_URL=http://192.168.0.11:8000
+ARG VITE_API_URL=http://192.168.0.12:8000
 ENV VITE_API_URL=$VITE_API_URL
 
 # Construir la aplicación para producción
