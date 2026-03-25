@@ -60,7 +60,7 @@ export const exportHostsToExcel = async (hostsToExport) => {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   })
 
-  downloadBlob(blob, `network_scan_${Date.now()}.xlsx`)
+  downloadBlob(blob, `ite_scan_${Date.now()}.xlsx`)
 }
 
 export const exportHostsToPNG = async (hostsToExport) => {
@@ -75,7 +75,7 @@ export const exportHostsToPNG = async (hostsToExport) => {
   const header = document.createElement('div')
   header.style.marginBottom = '30px'
   header.innerHTML = `
-    <h1 style="color: #67e8f9; font-size: 32px; margin: 0 0 10px 0;">Network Scanner Report</h1>
+    <h1 style="color: #67e8f9; font-size: 32px; margin: 0 0 10px 0;">ITE Scan</h1>
     <p style="color: #94a3b8; font-size: 14px; margin: 0;">Generated: ${new Date().toLocaleString()}</p>
     <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">Total Hosts: ${hostsToExport.length}</p>
   `
@@ -132,7 +132,7 @@ export const exportHostsToPNG = async (hostsToExport) => {
   const footer = document.createElement('div')
   footer.style.marginTop = '30px'
   footer.style.textAlign = 'center'
-  footer.innerHTML = '<p style="color: #94a3b8; font-size: 12px; margin: 0;">Network Scanner Dashboard - Professional Report</p>'
+  footer.innerHTML = '<p style="color: #94a3b8; font-size: 12px; margin: 0;">ITE Scan Dashboard</p>'
   container.appendChild(footer)
 
   document.body.appendChild(container)
@@ -153,7 +153,7 @@ export const exportHostsToPNG = async (hostsToExport) => {
       })
     })
 
-    downloadBlob(blob, `network_scan_${Date.now()}.png`)
+    downloadBlob(blob, `ite_scan_${Date.now()}.png`)
   } finally {
     document.body.removeChild(container)
   }
@@ -253,9 +253,9 @@ export const exportHostsToPDF = async (hostsToExport) => {
         { align: 'center' }
       )
 
-      pdf.text('Generado con Escáner de Red', 14, pageHeight - 10)
+      pdf.text('Generado con ITE Scan', 14, pageHeight - 10)
     }
   })
 
-  pdf.save(`network_scan_${Date.now()}.pdf`)
+  pdf.save(`ite_scan_${Date.now()}.pdf`)
 }
