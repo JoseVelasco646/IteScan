@@ -438,7 +438,7 @@ This project is open source and available under the MIT License.
 **Jose Velasco** - Full Stack Developer
 
 - GitHub: [@JoseVelasco646](https://github.com/JoseVelasco646)
-- LinkedIn: [Profile](https://linkedin.com)
+- LinkedIn: [Profile](https://www.linkedin.com/in/jose-manuel-velasco-garcia-55861b384/)
 
 ---
 
@@ -449,6 +449,4 @@ This project is open source and available under the MIT License.
 - Nmap project for network scanning capabilities
 - PostgreSQL for reliable database engine
 
----
 
-**Made with ❤️ for network security and monitoring**
